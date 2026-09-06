@@ -4,9 +4,30 @@
 }:
 
 let
+  # Helper function to preserve path references through builtins.path
+  # This ensures Nix dependency tracking works correctly even after
+  # the path is serialized through flake outputs
+  # 
+  # Note: This uses a conditional check to handle test environments
+  # where the secrets directory may not exist yet
+  protectPath =
+    path:
+    if builtins.pathExists path then
+      builtins.path {
+        inherit path;
+        name = baseNameOf (toString path);
+      }
+    else
+      # If path doesn't exist (e.g., in test environment), 
+      # still preserve it as a path type for proper downstream handling
+      path;
+
   defaultLayout = {
-    commonFile = projectRoot + "/secrets/common.yaml";
-    hostFile = host: projectRoot + "/secrets/hosts/${host}.yaml";
+    # Protect paths to preserve reference context
+    # Without this, paths would be stringified during flake evaluation
+    # and lose their reference to the source directory
+    commonFile = protectPath (projectRoot + "/secrets/common.yaml");
+    hostFile = host: protectPath (projectRoot + "/secrets/hosts/${host}.yaml");
   };
   effectiveLayout =
     if sopsLayout == null then
