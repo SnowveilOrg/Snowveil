@@ -56,6 +56,33 @@
 }
 ```
 
+## 主机级 Snowveil 选择
+
+`hosts/<name>/meta.nix` 可在发现阶段选择模块、overlay 与自动安装的 package；未选择的模块不会导入，未选择的 overlay 不会进入该主机的 `pkgs`。
+
+```nix
+{
+  snowveil = {
+    modules.desktop.gaming.enable = false;
+    overlays.unstable.enable = false;
+    packages = {
+      helix = {
+        enable = true;
+        scope = "system";
+      };
+      devenv = {
+        enable = true;
+        scope = "home";
+      };
+    };
+  };
+}
+```
+
+- `snowveil.modules.<role>.<module>.enable`：控制模块是否导入；旧的 `modules."<role>.<module>" = false` 保持兼容。
+- `snowveil.overlays.<name>.enable`：控制自动发现 overlay 是否应用到该主机，以及其关联 home-manager 的包集合。
+- `snowveil.packages.<name>`：选择自动安装的 `packages/<name>`；`scope` 为 `"system"` 时写入 `environment.systemPackages`，为 `"home"` 时写入关联用户的 `home.packages`。默认 scope 为 `"system"`。
+
 ## homes meta.nix
 
 homes 目录当前不读取 `meta.nix`；位置保留供未来使用（如多架构全局 home 的 system 声明）。

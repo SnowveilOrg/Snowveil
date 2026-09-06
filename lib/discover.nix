@@ -341,6 +341,7 @@ in
       (d: {
         inherit (d) name;
         path = projectRoot + "/overlays/" + d.name + "/default.nix";
+        meta = readMetadata (projectRoot + "/overlays/" + d.name + "/meta.nix");
       })
       (
         lib.filter (d: builtins.pathExists (projectRoot + "/overlays/" + d.name + "/default.nix")) (

@@ -414,6 +414,21 @@ inputs.snowveil.lib.mkFlake {
 
 自动发现条目可通过 `outputs.disabled` 或同目录 `meta.nix` 的 `enable` / `systems` 禁用。单架构 package 推荐使用 `packages/<system>/<name>/default.nix`，旧的 `<name>.<system>` 后缀在 package 中继续兼容。hosts 目录已改为 `hosts/<name>/` 格式，system 需在 `meta.nix` 中声明。
 
+主机可在 `meta.nix` 的静态 `snowveil` 属性集中控制预导入模块、overlay 与自动安装的 package：
+
+```nix
+{
+  snowveil.modules.desktop.gaming.enable = false;
+  snowveil.overlays.unstable.enable = false;
+  snowveil.packages.helix = {
+    enable = true;
+    scope = "home"; # 或 "system"
+  };
+}
+```
+
+这类选择在 NixOS module system 之前生效；被禁用的模块不会求值其 `mkOption`。详见[元数据系统](./docs/concepts/metadata.md)。
+
 ### 开发体验
 
 - **格式化**：本仓库的 `nix fmt` 经顶层 `formatter` 输出调用 treefmt；用户仓库若提供 `formatter/default.nix`，则生成自己的 `formatter.<system>`。

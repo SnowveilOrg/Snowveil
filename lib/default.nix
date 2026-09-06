@@ -134,15 +134,24 @@ let
       );
       overlayList = lib.attrValues overlays;
 
+      overlayListForHost =
+        host:
+        map (overlay: overlays.${overlay.name}) (
+          lib.filter (
+            overlay: (hostPlans.${host}.metadata.overlays.${overlay.name} or true)
+          ) discovered.overlays
+        );
+
       pkgsFor =
         {
           system,
           nixpkgsConfig ? { },
           extraOverlays ? [ ],
+          overlays ? overlayList,
         }:
         if
           nixpkgsConfig == { }
-          && overlayList == [ ]
+          && overlays == [ ]
           && extraOverlays == [ ]
           && builtins.hasAttr system (nixpkgs.legacyPackages or { })
         then
@@ -151,7 +160,7 @@ let
           import nixpkgs {
             inherit system;
             config = nixpkgsConfig;
-            overlays = overlayList ++ extraOverlays;
+            overlays = overlays ++ extraOverlays;
           };
 
       importFile =
@@ -346,6 +355,7 @@ let
           extraOverlays ? [ ],
           embedHomeManager ? true,
           homeManagerUseGlobalPkgs ? true,
+          hostPackages ? [ ],
           _pkgs ? null,
           _forTest ? false,
         }:
@@ -353,11 +363,14 @@ let
           plan = hostPlans.${host};
           hostRecord = plan.record;
           sys = if system == null then hostRecord.system else system;
+          hostOverlays = overlayListForHost host;
           pkgs =
             if _pkgs == null then
               pkgsFor {
                 system = sys;
-                inherit nixpkgsConfig extraOverlays;
+                inherit nixpkgsConfig;
+                inherit extraOverlays;
+                overlays = hostOverlays;
               }
             else
               _pkgs;
@@ -428,12 +441,13 @@ let
                         selection = plan.home;
                       }
                       ++ extraModules
-                      ++ extraHomeModules;
+                      ++ extraHomeModules
+                      ++ lib.optional (homePackages != [ ]) homePackagesModule;
                   }
                   // lib.optionalAttrs (!useGlobalPkgs) {
                     nixpkgs = {
                       config = nixpkgsConfig;
-                      overlays = overlayList ++ extraOverlays;
+                      overlays = hostOverlays ++ extraOverlays;
                     };
                   }
                 );
@@ -442,6 +456,19 @@ let
             };
 
           setSnowveilModule = _: { config.snowveil.users = hostUsers; };
+
+          systemPackages = map (package: callPackage pkgs package.path) (
+            lib.filter (package: package.scope == "system") hostPackages
+          );
+          homePackages = map (package: callPackage pkgs package.path) (
+            lib.filter (package: package.scope == "home") hostPackages
+          );
+          packagesModule = lib.optionalAttrs (systemPackages != [ ]) {
+            environment.systemPackages = systemPackages;
+          };
+          homePackagesModule = lib.optionalAttrs (homePackages != [ ]) {
+            home.packages = homePackages;
+          };
 
           finalModules = [
             optionsSnowveil
@@ -453,6 +480,7 @@ let
           ++ lib.optionals (hostUserRecords != [ ]) [ userDefaultsModule ]
           ++ userDefaultModules
           ++ lib.optionals (embedForHost && hostHomeUsers != [ ]) [ embedModule ]
+          ++ lib.optional (systemPackages != [ ]) packagesModule
           ++ hostModules
           ++ modules
           ++ extraModules
@@ -517,6 +545,7 @@ let
           extraSpecialArgs ? { },
           nixpkgsConfig ? { },
           extraOverlays ? [ ],
+          hostPackages ? [ ],
           _pkgs ? null,
         }:
         let
@@ -534,10 +563,18 @@ let
               lib.head defaultSystems;
           pkgs =
             if _pkgs == null then
-              pkgsFor {
-                system = sys;
-                inherit nixpkgsConfig extraOverlays;
-              }
+              if host == null then
+                pkgsFor {
+                  system = sys;
+                  inherit nixpkgsConfig extraOverlays;
+                }
+              else
+                pkgsFor {
+                  system = sys;
+                  inherit nixpkgsConfig;
+                  inherit extraOverlays;
+                  overlays = overlayListForHost host;
+                }
             else
               _pkgs;
           selection = if host == null then globalHomeSelection else hostPlans.${host}.home;
@@ -550,6 +587,11 @@ let
           ]
           ++ homeModulesFor {
             inherit user host selection;
+          }
+          ++ lib.optional (host != null && hostPackages != [ ]) {
+            home.packages = map (package: callPackage pkgs package.path) (
+              lib.filter (package: package.scope == "home") hostPackages
+            );
           }
           ++ modules
           ++ extraModules
@@ -639,7 +681,7 @@ let
                   embedHomeManager
                   homeManagerUseGlobalPkgs
                   ;
-                _pkgs = pkgsBySystem.${h.system};
+                hostPackages = hostPackagesFor h.name h.system;
               })
             ) discovered.hosts
           );
@@ -747,6 +789,21 @@ let
               meta = package.meta // lib.optionalAttrs (supportedSystems != null) { systems = supportedSystems; };
             }
           ) discovered.packages;
+
+          hostPackagesFor =
+            host: system:
+            map (package: package // { scope = hostPlans.${host}.metadata.packages.${package.name}.scope; }) (
+              lib.filter (
+                package:
+                (package.explicitSystem == null || package.explicitSystem == system)
+                && metadataEnabled {
+                  kind = "packages";
+                  inherit (package) name meta;
+                  inherit system;
+                }
+                && (hostPlans.${host}.metadata.packages.${package.name}.enable or false)
+              ) packageDefs
+            );
 
           packages = forAllSystems systems (
             sys:
@@ -862,7 +919,7 @@ let
                         nixpkgsConfig
                         extraOverlays
                         ;
-                      _pkgs = pkgsBySystem.${discovered.hostsByName.${host}.system};
+                      hostPackages = hostPackagesFor host discovered.hostsByName.${host}.system;
                     })
                   ) (lib.filter (host: builtins.hasAttr host discovered.hostsByName) h.hosts)
                 ) discovered.homes

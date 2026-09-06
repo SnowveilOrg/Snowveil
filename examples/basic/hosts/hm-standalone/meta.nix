@@ -3,8 +3,8 @@
   roles = [ "server" ];
   profiles = [ "workstation" ];
 
-  # profile 启用的成员仍可被主机级覆盖显式禁用（验证仍走 override）
-  modules."workstation.podman" = false;
+  snowveil.modules.workstation.podman.enable = false;
+  snowveil.overlays.example.enable = false;
 
   home.embed = false;
 }

@@ -27,6 +27,106 @@ let
     else
       throw "host profiles must be a string or list of strings, got ${builtins.typeOf profiles}";
 
+  flattenSelections =
+    {
+      kind,
+      value,
+      validate,
+      prefix ? [ ],
+    }:
+    if !builtins.isAttrs value then
+      throw "snowveil.${kind} in meta.nix must be an attrset, got ${builtins.typeOf value}"
+    else
+      lib.concatMapAttrs (
+        name: entry:
+        let
+          path = prefix ++ [ name ];
+          key = lib.concatStringsSep "." path;
+        in
+        if builtins.isAttrs entry && (entry ? enable || entry ? scope) then
+          { ${key} = validate key entry; }
+        else if kind != "packages" && builtins.isBool entry then
+          { ${key} = entry; }
+        else
+          flattenSelections {
+            inherit kind validate;
+            value = entry;
+            prefix = path;
+          }
+      ) value;
+
+  normalizeModuleSelections =
+    value:
+    flattenSelections {
+      kind = "modules";
+      inherit value;
+      validate =
+        key: entry:
+        if builtins.isBool entry.enable then
+          entry.enable
+        else
+          throw "snowveil.modules.${key}.enable in meta.nix must be a boolean";
+    };
+
+  normalizeOverlaySelections =
+    value:
+    flattenSelections {
+      kind = "overlays";
+      inherit value;
+      validate =
+        key: entry:
+        if builtins.isBool entry.enable then
+          entry.enable
+        else
+          throw "snowveil.overlays.${key}.enable in meta.nix must be a boolean";
+    };
+
+  normalizePackageSelections =
+    value:
+    flattenSelections {
+      kind = "packages";
+      inherit value;
+      validate =
+        key: entry:
+        let
+          enable = entry.enable or true;
+          scope = entry.scope or "system";
+        in
+        if !builtins.isBool enable then
+          throw "snowveil.packages.${key}.enable in meta.nix must be a boolean"
+        else if
+          !(builtins.elem scope [
+            "system"
+            "home"
+          ])
+        then
+          throw "snowveil.packages.${key}.scope in meta.nix must be either system or home"
+        else
+          { inherit enable scope; };
+    };
+
+  validateSelections =
+    {
+      kind,
+      known,
+      selections,
+    }:
+    lib.mapAttrs (
+      name: value:
+      if builtins.hasAttr name known then
+        value
+      else
+        throw "snowveil.${kind}.${name} in meta.nix does not match a discovered ${kind}"
+    ) selections;
+
+  validateModuleSelections =
+    selections:
+    validateSelections {
+      kind = "modules";
+      known = discovered.localGroupedModules.index;
+      inherit selections;
+    };
+
   # 读取一个 bool? 字段，支持新旧两种路径
   # newPath: 新推荐路径（如 raw.home.embed）
   # oldPaths: 旧路径列表 { value; name; } 带 deprecated 警告
@@ -52,6 +152,7 @@ let
     raw:
     let
       homeMeta = raw.home or { };
+      snowveilMeta = raw.snowveil or { };
       # 旧式扁平字段
       oldEmbed = raw.embedHomeManager or null;
       oldUseGlobalPkgs = raw.homeManagerUseGlobalPkgs or null;
@@ -63,7 +164,19 @@ let
     {
       roles = normalizeRoles (raw.roles or raw.role or null);
       profiles = normalizeProfiles (raw.profiles or null);
-      modules = raw.modules or { };
+      modules = validateModuleSelections (
+        (raw.modules or { }) // normalizeModuleSelections (snowveilMeta.modules or { })
+      );
+      overlays = validateSelections {
+        kind = "overlays";
+        known = lib.genAttrs (map (overlay: overlay.name) discovered.overlays) (_: true);
+        selections = normalizeOverlaySelections (snowveilMeta.overlays or { });
+      };
+      packages = validateSelections {
+        kind = "packages";
+        known = lib.genAttrs (map (package: package.name) discovered.packages) (_: true);
+        selections = normalizePackageSelections (snowveilMeta.packages or { });
+      };
       embedHomeManager = readBoolField {
         newValue = homeMeta.embed or null;
         oldPaths = [
@@ -156,6 +269,11 @@ in
   inherit
     normalizeRoles
     normalizeProfiles
+    normalizeModuleSelections
+    normalizeOverlaySelections
+    normalizePackageSelections
+    validateSelections
+    validateModuleSelections
     normalizeHostMetadata
     resolveHost
     hostMetadataFor
