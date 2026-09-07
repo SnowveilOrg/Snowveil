@@ -7,6 +7,9 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    flake-schemas = {
+      url = "github:DeterminateSystems/flake-schemas";
+    };
   };
 
   outputs =
@@ -14,11 +17,12 @@
       self,
       nixpkgs,
       home-manager,
+      flake-schemas,
     }:
     let
       inherit (nixpkgs) lib;
       snowveil = import ./lib { inherit lib; };
-      schema = import ./lib/schema.nix { };
+      schema = import ./lib/schema.nix;
       frameworkInputs = {
         inherit self nixpkgs home-manager;
       };
@@ -33,7 +37,7 @@
           ;
         repoRoot = ./.;
       };
-      checks = selfChecks.checks;
+      inherit (selfChecks) checks;
       systems = [
         "x86_64-linux"
         "aarch64-linux"
@@ -103,8 +107,6 @@
         options
         ;
 
-      flakeOutputsSchema = schema.metaFlakeOutputs // {
-        userFlakeOutputsNote = "User flakes will also include: nixosConfigurations, homeConfigurations, packages, apps, nixosModules, homeModules, overlays, images, deploy";
-      };
+      schemas = flake-schemas.exportedSchemas // schema.snowveilSchemas;
     };
 }

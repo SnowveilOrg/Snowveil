@@ -1,23 +1,18 @@
 {
   "nodes": {
-    "snowveil": {
-      "inputs": {
-        "home-manager": [
-          "home-manager"
-        ],
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
+    "flake-schemas": {
       "locked": {
-        "lastModified": 0,
-        "narHash": "sha256-XDsYpai/G9pfpPlAJAtKsIpLyLO9lSEXyI/uhAKCUTM=",
-        "path": "../..",
-        "type": "path"
+        "lastModified": 1780327564,
+        "narHash": "sha256-HiRPtA0spK+Dkgbhz/1zW9glXxNVB+L4Rj2VYmdawb8=",
+        "owner": "DeterminateSystems",
+        "repo": "flake-schemas",
+        "rev": "6cc9bd98891b1fc6bb2b8cb3277df8bc72799ca6",
+        "type": "github"
       },
       "original": {
-        "path": "../..",
-        "type": "path"
+        "owner": "DeterminateSystems",
+        "repo": "flake-schemas",
+        "type": "github"
       }
     },
     "home-manager": {
@@ -58,9 +53,30 @@
     },
     "root": {
       "inputs": {
-        "snowveil": "snowveil",
+        "flake-schemas": "flake-schemas",
         "home-manager": "home-manager",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "snowveil": "snowveil"
+      }
+    },
+    "snowveil": {
+      "inputs": {
+        "home-manager": [
+          "home-manager"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 0,
+        "narHash": "sha256-XDsYpai/G9pfpPlAJAtKsIpLyLO9lSEXyI/uhAKCUTM=",
+        "path": "../..",
+        "type": "path"
+      },
+      "original": {
+        "path": "../..",
+        "type": "path"
       }
     }
   },

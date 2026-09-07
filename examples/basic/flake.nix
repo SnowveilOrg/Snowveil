@@ -14,6 +14,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.home-manager.follows = "home-manager";
     };
+
+    flake-schemas = {
+      url = "github:DeterminateSystems/flake-schemas";
+    };
   };
 
   outputs = inputs: inputs.snowveil.lib.mkFlake { inherit inputs; };

@@ -18,21 +18,33 @@ outputs.extra = {
 
 `deploy`、`homeModules`、`images`、`options` 等属于生态约定或框架扩展。原生 `nix flake check` 可能输出 `unknown flake output`，这不等同于 derivation 或框架检查失败，框架库也无法拦截该原生警告。
 
-从 v0.5.0+ 开始，Snowveil 通过 **显式声明 `flakeOutputsSchema`** 来标记所有已知的 outputs，减少该噪音：
+Snowveil 通过 **遵循 [Determinate Systems flake-schemas](https://github.com/DeterminateSystems/flake-schemas) 约定的 `schemas` output** 声明所有已知 outputs，让 `nix flake show`、IDE 与第三方工具能识别这些非标准输出，而不是把它们当作拼写错误：
 
-```bash
-# 生成的 flake 现在包含 flakeOutputsSchema output
-nix eval '.#flakeOutputsSchema'
+```nix
+# 用户 flake 需要声明 flake-schemas input
+{
+  inputs.flake-schemas.url = "github:DeterminateSystems/flake-schemas";
 
-# 查看框架本身的 schema
-nix eval '.#flakeOutputsSchema'
+  outputs = inputs: inputs.snowveil.lib.mkFlake { inherit inputs; };
+}
 ```
 
-框架在 `lib/schema.nix` 中定义了：
-- **元 flake** (snowveil 本身)：`lib`、`templates`、`checks`、`devShells`、`formatter`、`options`、`flakeOutputsSchema`
-- **用户 flake** (mkFlake 生成)：所有上述内容加上 `nixosConfigurations`、`homeConfigurations`、`packages`、`apps`、`nixosModules`、`homeModules`、`overlays`、`images`、`deploy`
+```bash
+# mkFlake 生成的 flake 现在包含 schemas output
+nix eval '.#schemas.images'
+nix eval '.#schemas.deploy'
 
-这是一个 **框架契约声明**，既为人类可读，也可被工具自动解析。这改进了用户体验，因为 Nix 工具现在能正确识别这些是有意的自定义输出，而不是拼写错误。
+# 框架本身的 schemas output（含 options）
+nix eval '.#schemas.options'
+```
+
+框架在 `lib/schema.nix` 中定义了 Snowveil 专属的 schema：
+
+- **`images`**：`images.<host>.<format>` → NixOS 系统镜像 derivation
+- **`deploy`**：deploy-rs 兼容的部署节点配置
+- **`options`**：per-system 的 `snowveil.*` options 文档
+
+标准 outputs（`packages`、`checks`、`devShells`、`nixosModules`、`homeModules`、`homeConfigurations`、`overlays` 等）的 schema 复用 `flake-schemas.exportedSchemas`。若用户 flake 未声明 `flake-schemas` input，`schemas` 会退化为只包含 Snowveil 专属定义，标准 outputs 仍被原生 Nix 识别。
 
 ```bash
 # 完整的检查（含诊断信息）

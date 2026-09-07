@@ -1,31 +1,70 @@
-# Snowveil framework contract definition
-# =======================================
-# Enumerates outputs the Snowveil meta flake exposes so downstream tools
-# (docs, IDE integrations) can reflect on them without triggering the
-# "unknown flake output" warning Nix emits for unrecognised attribute
-# names. See flake.nix for the generated `flakeOutputsSchema` output.
-#
-# Note: the mkFlake pipeline separately attaches a per-project schema to
-# user flakes; see lib/default.nix for that declaration.
+# Snowveil flake output schemas
+# ===============================
+# 遵循 Determinate Systems flake-schemas 的 schema 约定
+# （version / doc / inventory），用于生成 flake 的 `schemas` output，
+# 让 nix flake show、IDE 与第三方工具识别 Snowveil 生成的非标准 outputs
+# （images、deploy、options）。标准 outputs（packages、checks、nixosModules、
+# homeModules 等）的 schema 来自 inputs.flake-schemas.exportedSchemas，
+# 本文件只补充 Snowveil 专属部分，调用方负责 `//` 合并。
 
-_:
-
+let
+  mkChildren = children: { inherit children; };
+in
 {
-  # Meta flake outputs (this repository).
-  metaFlakeOutputs = {
-    # Programming interface
-    lib = "attribute set - Snowveil library, types, and utilities";
+  snowveilSchemas = {
+    images = {
+      version = 1;
+      doc = ''
+        The `images` flake output contains NixOS system images (ISO, VM, OCI,
+        ...) built per host and image format via `system.build.images`.
+      '';
+      inventory =
+        output:
+        mkChildren (
+          builtins.mapAttrs (host: formats: {
+            what = "NixOS image set";
+            children = builtins.mapAttrs (format: image: {
+              forSystems = [ image.system ];
+              shortDescription = image.meta.description or "";
+              derivationAttrPath = [ ];
+              what = "NixOS image";
+            }) formats;
+          }) output
+        );
+    };
 
-    # User-facing
-    templates = "attribute set - flake templates (default)";
+    deploy = {
+      version = 1;
+      doc = ''
+        The `deploy` flake output contains deploy-rs compatible deployment
+        configuration, with one entry per target node.
+      '';
+      inventory =
+        output:
+        let
+          nodes = output.nodes or { };
+        in
+        mkChildren (
+          builtins.mapAttrs (name: _node: {
+            what = "deploy node";
+          }) nodes
+        );
+    };
 
-    # Quality assurance
-    checks = "per-system derivations - framework self-tests and validations";
-    devShells = "per-system attribute - development environment (default)";
-    formatter = "per-system derivation - code formatting tool";
-
-    # Documentation
-    options = "per-system text file - NixOS options documentation (JSON)";
-    flakeOutputsSchema = "attribute set - this schema documentation";
+    options = {
+      version = 1;
+      doc = ''
+        The `options` flake output contains per-system JSON documentation of the
+        `snowveil.*` NixOS module options interface.
+      '';
+      inventory =
+        output:
+        mkChildren (
+          builtins.mapAttrs (system: _file: {
+            forSystems = [ system ];
+            what = "options documentation";
+          }) output
+        );
+    };
   };
 }
