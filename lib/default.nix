@@ -418,7 +418,7 @@ let
           embedModule =
             { config, lib, ... }:
             let
-              bfe = config.snowveil.homeManager.backupFileExtension;
+              backupFileExtension = config.snowveil.homeManager.backupFileExtension;
             in
             {
               imports = [
@@ -454,7 +454,7 @@ let
                   }
                 );
               }
-              // lib.optionalAttrs (bfe != null) { backupFileExtension = bfe; };
+              // lib.optionalAttrs (backupFileExtension != null) { inherit backupFileExtension; };
             };
 
           setSnowveilModule = _: { config.snowveil.users = hostUsers; };

@@ -9,19 +9,19 @@ let
     path:
     let
       # 将 /path/to/modules/desktop/gaming/nixos.nix 转换为 desktop/gaming
-      asStr = builtins.toString path;
+      pathString = builtins.toString path;
       # 查找 /modules/ 后面的部分
-      parts = lib.splitString "/modules/" asStr;
+      splitParts = lib.splitString "/modules/" pathString;
     in
-    if lib.length parts >= 2 then
+    if lib.length splitParts >= 2 then
       let
-        afterModules = lib.last parts;
+        afterModulesDirectory = lib.last splitParts;
         # 移除最后的文件名（nixos.nix, home.nix, default.nix）
-        dir = builtins.dirOf afterModules;
+        directoryPath = builtins.dirOf afterModulesDirectory;
         # 用点替换斜杠
-        moduleName = lib.replaceStrings [ "/" ] [ "." ] dir;
+        dotSeparatedName = lib.replaceStrings [ "/" ] [ "." ] directoryPath;
       in
-      if moduleName == "" || moduleName == "." then null else moduleName
+      if dotSeparatedName == "" || dotSeparatedName == "." then null else dotSeparatedName
     else
       null;
 
@@ -34,15 +34,15 @@ let
       isModuleEnabled =
         modulePath:
         let
-          moduleName = pathToModuleName modulePath;
+          resolvedModuleName = pathToModuleName modulePath;
         in
-        if moduleName == null then
+        if resolvedModuleName == null then
           true
         else
           let
-            override = overrides.${moduleName} or null;
+            overrideValue = overrides.${resolvedModuleName} or null;
           in
-          if override == null then true else override;
+          if overrideValue == null then true else overrideValue;
     in
     lib.filter isModuleEnabled modules;
 
