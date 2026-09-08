@@ -276,11 +276,11 @@ let
   normalizeHosts =
     user: hosts:
     if hosts == null then
-      throw "users/${user}/meta.nix must declare hosts (e.g. hosts = [ \"nixos-desktop\" ])"
+      errors.missingUserHosts user
     else if !builtins.isList hosts then
-      throw "users/${user}/meta.nix hosts must be a list of strings"
+      errors.invalidUserHosts user
     else if !lib.all (host: builtins.isString host) hosts then
-      throw "users/${user}/meta.nix hosts must be a list of strings"
+      errors.invalidUserHosts user
     else
       hosts;
 

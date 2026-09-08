@@ -236,4 +236,37 @@
       file: ${toString path}
       got: ${type}
       remove function wrappers or null returns'';
+
+  missingUserHosts =
+    user:
+    throw ''
+      error: user hosts not declared
+
+      users/${user}/meta.nix must declare hosts
+      example:
+        hosts = [ "nixos-desktop" "nixos-laptop" ]'';
+
+  invalidUserHosts =
+    user:
+    throw ''
+      error: invalid user hosts
+
+      users/${user}/meta.nix hosts must be a list of strings
+      example:
+        hosts = [ "nixos-desktop" "nixos-laptop" ]'';
+
+  invalidHostRolesType =
+    {
+      host,
+      type,
+    }:
+    throw ''
+      error: invalid host roles type
+
+      hosts/${host}/meta.nix roles must be a string or list of strings
+      got: ${type}
+      example:
+        roles = "workstation";
+        # or
+        roles = [ "workstation" "development" ];'';
 }
