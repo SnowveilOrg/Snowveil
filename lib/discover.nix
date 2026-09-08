@@ -18,6 +18,7 @@
 let
   depGraph = import ./internal/depgraph.nix { inherit lib; };
   profileTools = import ./internal/profiles.nix { inherit lib; };
+  errors = import ./internal/errors.nix { inherit lib; };
 
   listDirAt =
     rel:
@@ -39,7 +40,10 @@ let
       else if value == null then
         { }
       else
-        throw "metadata file '${toString path}' must directly return an attribute set";
+        errors.metadataFileMustReturnAttrSet {
+          inherit path;
+          type = builtins.typeOf value;
+        };
 
   namedOutputsAt =
     dir:
@@ -103,7 +107,7 @@ let
             sys = meta.system or null;
           in
           if sys == null then
-            builtins.throw "hosts/${rawName}/meta.nix must declare system (e.g. system = \"x86_64-linux\")"
+            errors.missingHostSystem rawName
           else
             sys;
       };
@@ -153,7 +157,7 @@ let
 
   allProfileDefs =
     if duplicateProfiles != [ ] then
-      throw "profile name conflict: ${lib.concatStringsSep ", " duplicateProfiles} defined both in profiles/ and mkFlake.profiles; keep only one"
+      errors.duplicateProfiles duplicateProfiles
     else
       fileProfiles
       // lib.mapAttrs (name: value: {

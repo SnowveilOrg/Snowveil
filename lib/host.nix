@@ -5,6 +5,10 @@
 }:
 
 let
+  errors = import ./internal/errors.nix { inherit lib; };
+in
+
+let
   normalizeRoles =
     roles:
     if roles == null then
@@ -14,7 +18,7 @@ let
     else if builtins.isList roles && lib.all builtins.isString roles then
       roles
     else
-      throw "host role/roles must be a string or list of strings, got ${builtins.typeOf roles}";
+      errors.invalidRoleType (builtins.typeOf roles);
 
   normalizeProfiles =
     profiles:
@@ -25,7 +29,7 @@ let
     else if builtins.isList profiles && lib.all builtins.isString profiles then
       profiles
     else
-      throw "host profiles must be a string or list of strings, got ${builtins.typeOf profiles}";
+      errors.invalidProfileType (builtins.typeOf profiles);
 
   flattenSelections =
     {
@@ -35,7 +39,11 @@ let
       prefix ? [ ],
     }:
     if !builtins.isAttrs value then
-      throw "snowveil.${kind} in meta.nix must be an attrset, got ${builtins.typeOf value}"
+      errors.invalidMetadataType {
+        file = "meta.nix";
+        expected = "attrset for snowveil.${kind}";
+        got = builtins.typeOf value;
+      }
     else
       lib.concatMapAttrs (
         name: entry:
@@ -212,7 +220,7 @@ let
   resolveHost =
     host:
     discovered.hostsByName.${host}
-      or (throw "host '${host}' was not discovered; create hosts/${host}/ and declare system in meta.nix");
+      or (errors.unknownHost host);
 
   hostMetadataFor =
     { host, ... }:
