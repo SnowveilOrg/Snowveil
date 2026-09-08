@@ -1,11 +1,25 @@
-# discover.nix — 目录自动发现
+# discover.nix — 目录递归扫描和约定发现
 #
-# 主机目录约定：
-#   hosts/<name>/                 meta.nix 必须声明 system = "..."
+# 此模块是 Snowveil 的核心发现引擎。它根据目录约定自动扫描项目，发现并
+# 加载所有主机、模块、Home Manager 配置、packages、overlays 等。
 #
-# 主机目录内固定分拣 magic 文件（存在则按此顺序 import，允许缺失）：
-#   default.nix（必需）→ hardware.nix → disk.nix → network.nix
-# meta.nix 只作为元数据读取；其余 .nix 文件不会自动导入（输出 trace 警告）。
+# 主机目录约定 (hosts/):
+#   hosts/<name>/
+#     ├── default.nix       (必需) 主机配置模块
+#     ├── meta.nix          (必需) system、roles、profiles 等元数据
+#     ├── hardware.nix      (可选) 硬件配置
+#     ├── disk.nix          (可选) 分区配置  
+#     └── network.nix       (可选) 网络配置
+#
+# 模块目录约定 (modules/):
+#   modules/
+#     └── <role>/
+#         └── <module>/
+#             ├── default.nix      (可选) 共享配置
+#             ├── nixos.nix        (可选) NixOS 特定配置
+#             └── home.nix         (可选) Home Manager 特定配置
+#
+# 注意：meta.nix 仅作为元数据读取；其余 .nix 文件不会自动导入（仅输出 trace 警告）。
 {
   lib,
   fs,

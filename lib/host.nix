@@ -1,4 +1,11 @@
-# host.nix — host 元数据读取、角色解析、per-host HM 策略
+# host.nix — host 元数据规范化和验证
+#
+# 此模块处理 hosts/{name}/meta.nix 中定义的主机元数据的读取、验证和规范化。
+# 主要职责：
+#   - 规范化角色和配置文件声明（支持字符串或列表）
+#   - 展平和验证 snowveil.* 选择器结构（modules、overlays、packages）
+#   - 解析和验证向后兼容的 homeManager 配置字段
+#   - 提供角色和配置文件查询接口
 {
   lib,
   discovered,
@@ -9,6 +16,10 @@ let
 in
 
 let
+  # 元数据规范化和验证函数
+  # 规范化主机角色声明为列表
+  # 接受：null、单个字符串或字符串列表
+  # 返回：null（未声明）或字符串列表
   normalizeRoles =
     roles:
     if roles == null then
@@ -20,6 +31,9 @@ let
     else
       errors.invalidRoleType (builtins.typeOf roles);
 
+  # 规范化主机配置文件声明为列表
+  # 接受：null、单个字符串或字符串列表
+  # 返回：字符串列表（null 默认为 []）
   normalizeProfiles =
     profiles:
     if profiles == null then
@@ -31,12 +45,15 @@ let
     else
       errors.invalidProfileType (builtins.typeOf profiles);
 
+  # 递归展平嵌套的选择器结构（如 snowveil.modules）
+  # 将嵌套的属性树转换为点分隔的键值对
+  # 例如：{ desktop = { gaming = { enable = true; }; }; } -> { "desktop.gaming" = true; }
   flattenSelections =
     {
-      kind,
-      value,
-      validate,
-      prefix ? [ ],
+      kind,  # 出错消息中的种类名称（"modules"、"overlays" 等）
+      value,  # 要展平的结构
+      validate,  # 用于单个选择的验证函数
+      prefix ? [ ],  # 当前的嵌套键前缀
     }:
     if !builtins.isAttrs value then
       errors.invalidMetadataType {
