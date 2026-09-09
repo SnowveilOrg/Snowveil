@@ -19,6 +19,8 @@ let
   userTools = import ./user.nix { inherit lib; };
   utils = import ./internal/utils.nix { inherit lib; };
   builtinOptions = import ./internal/options.nix { };
+  validationTools = import ./internal/validation.nix { inherit lib; };
+  outputTools = import ./internal/outputs.nix { inherit lib; };
 
   inherit (utils) renderOptions;
   inherit (builtinOptions) optionsSnowveil optionsSnowveilHome;
@@ -688,76 +690,25 @@ let
             ) discovered.hosts
           );
 
-          disabledSet =
-            if builtins.isList disabledOutputs then
-              lib.genAttrs disabledOutputs (_: true)
-            else if builtins.isAttrs disabledOutputs then
-              lib.mapAttrs (_: names: lib.genAttrs names (_: true)) disabledOutputs
-            else
-              throw "disabledOutputs must be a list of strings or an attrset mapping output names to lists of names";
+          disabledSet = validationTools.parseDisabledOutputs { inherit disabledOutputs; };
 
           disabledByName =
             kind: name:
-            if builtins.isList disabledOutputs then
-              builtins.hasAttr "${kind}.${name}" disabledSet
-              || (kind == "formatter" && name == "default" && builtins.hasAttr "formatter" disabledSet)
-              || (kind == "deploy" && name == "default" && builtins.hasAttr "deploy" disabledSet)
-            else
-              builtins.hasAttr name (disabledSet.${kind} or { });
+            validationTools.isDisabledByName {
+              inherit kind name disabledOutputs disabledSet;
+            };
 
           disabledForSystem =
             kind: name: system:
-            disabledByName kind name
-            || (
-              if builtins.isList disabledOutputs then
-                builtins.hasAttr "${kind}.${system}.${name}" disabledSet
-                || (kind == "formatter" && name == "default" && builtins.hasAttr "formatter.${system}" disabledSet)
-              else
-                builtins.hasAttr "${system}.${name}" (disabledSet.${kind} or { })
-            );
+            validationTools.isDisabledForSystem {
+              inherit kind name system disabledOutputs disabledSet disabledByName;
+            };
 
           metadataEnabled =
-            {
-              kind,
-              name,
-              meta,
-              system,
-            }:
-            let
-              enabled = meta.enable or true;
-              supportedSystems = meta.systems or null;
-            in
-            if !builtins.isBool enabled then
-              throw "error: invalid meta value
+            args:
+            outputTools.metadataEnabled (args // { inherit disabledForSystem; });
 
-  ${kind}.${name} meta.enable must be a boolean
-  got: ${builtins.typeOf enabled}"
-            else if
-              supportedSystems != null
-              && !(builtins.isList supportedSystems && lib.all builtins.isString supportedSystems)
-            then
-              throw "error: invalid meta value
-
-  ${kind}.${name} meta.systems must be a list of strings
-  got: ${builtins.typeOf supportedSystems}"
-            else
-              enabled
-              && (supportedSystems == null || builtins.elem system supportedSystems)
-              && !disabledForSystem kind name system;
-
-          uniqueDefinitions =
-            kind: system: definitions:
-            let
-              grouped = lib.groupBy (definition: definition.name) definitions;
-              duplicates = builtins.attrNames (lib.filterAttrs (_: values: builtins.length values > 1) grouped);
-            in
-            if duplicates == [ ] then
-              definitions
-            else
-              throw "error: duplicate names detected
-
-  ${kind}.${system} contains duplicate definitions:
-  ${lib.concatStringsSep ", " duplicates}";
+          uniqueDefinitions = outputTools.uniqueDefinitions;
 
           knownSystems = lib.unique (systems ++ lib.systems.flakeExposed);
           knownSystemsSet = lib.genAttrs knownSystems (_: true);
@@ -828,21 +779,18 @@ let
 
           namedSystemOutputs =
             kind: definitions:
-            forAllSystems systems (
-              sys:
-              let
-                pkgs = pkgsBySystem.${sys};
-                enabled = lib.filter (
-                  d:
-                  metadataEnabled {
-                    inherit kind;
-                    inherit (d) name meta;
-                    system = sys;
-                  }
-                ) definitions;
-              in
-              lib.listToAttrs (map (d: lib.nameValuePair d.name (callPackage pkgs d.path)) enabled)
-            );
+            outputTools.namedSystemOutputs {
+              inherit
+                lib
+                kind
+                systems
+                definitions
+                metadataEnabled
+                uniqueDefinitions
+                callPackage
+                pkgsBySystem
+                ;
+            };
 
           devShells = namedSystemOutputs "devShells" discovered.shells;
           discoveredChecks = namedSystemOutputs "checks" discovered.checks;
@@ -973,43 +921,10 @@ let
                 hostRecord: map (format: "${hostRecord.name}.${format}") (hostRecord.meta.images.formats or [ ])
               ) discovered.hosts;
 
-              checkedExpectedOutputs =
-                if builtins.isAttrs expectedOutputs then
-                  expectedOutputs
-                else
-                  throw "outputs.expected must be an attribute set";
-              expectedMode = checkedExpectedOutputs.mode or "subset";
-              supportedExpectedFields = [
-                "hosts"
-                "homes"
-                "packages"
-                "apps"
-                "checks"
-                "devShells"
-                "overlays"
-                "nixosModules"
-                "homeModules"
-                "formatter"
-                "deploy"
-                "images"
-              ];
-              supportedExpectedFieldsSet = lib.genAttrs supportedExpectedFields (_: true);
-              expectedFields = builtins.removeAttrs checkedExpectedOutputs [ "mode" ];
-              unknownExpectedFields = lib.filter (name: !builtins.hasAttr name supportedExpectedFieldsSet) (
-                builtins.attrNames expectedFields
-              );
-              checkedExpectedFields =
-                if
-                  !builtins.hasAttr expectedMode {
-                    subset = true;
-                    exact = true;
-                  }
-                then
-                  throw "outputs.expected.mode must be \"subset\" or \"exact\""
-                else if unknownExpectedFields != [ ] then
-                  throw "outputs.expected contains unsupported fields: ${lib.concatStringsSep ", " unknownExpectedFields}"
-                else
-                  expectedFields;
+              _validatedExpected = validationTools.validateExpectedOutputs { inherit expectedOutputs; };
+              expectedMode = _validatedExpected.expectedMode;
+              checkedExpectedFields = _validatedExpected.checkedExpectedFields;
+              supportedExpectedFields = _validatedExpected.supportedExpectedFields;
 
               stringList =
                 label: value:
@@ -1157,41 +1072,20 @@ let
                 ) kindsToCheck
               );
 
-              checkedEvalOutputs =
-                if builtins.isAttrs evalOutputs then evalOutputs else throw "outputs.eval must be an attribute set";
-              evalKeys = builtins.attrNames checkedEvalOutputs;
-              invalidEvalKeys = lib.filter (
-                name:
-                !builtins.hasAttr name {
-                  hosts = true;
-                  homes = true;
-                }
-              ) evalKeys;
+              checkedEvalOutputs = validationTools.validateEvalOutputs { inherit evalOutputs; };
               evalHosts = checkedEvalOutputs.hosts or false;
               evalHomes = checkedEvalOutputs.homes or false;
-              evalSelection =
-                kind: available: value:
-                if builtins.isBool value then
-                  if value then available else [ ]
-                else if builtins.isList value && lib.all builtins.isString value then
-                  let
-                    selected = lib.unique value;
-                    availableSet = lib.genAttrs available (_: true);
-                    unknown = lib.filter (name: !builtins.hasAttr name availableSet) selected;
-                  in
-                  if unknown == [ ] then
-                    selected
-                  else
-                    throw "outputs.eval.${kind} references undiscovered targets: ${lib.concatStringsSep ", " unknown}"
-                else
-                  throw "outputs.eval.${kind} must be a boolean or a list of strings";
-              selectedEvalHosts = evalSelection "hosts" discoveredHosts evalHosts;
-              selectedEvalHomes = evalSelection "homes" discoveredHomes evalHomes;
-              checkedEval =
-                if invalidEvalKeys != [ ] then
-                  throw "outputs.eval contains unsupported fields: ${lib.concatStringsSep ", " invalidEvalKeys}"
-                else
-                  builtins.deepSeq selectedEvalHosts (builtins.deepSeq selectedEvalHomes true);
+              selectedEvalHosts = validationTools.stringListOrBool {
+                label = "hosts";
+                value = evalHosts;
+                available = discoveredHosts;
+              };
+              selectedEvalHomes = validationTools.stringListOrBool {
+                label = "homes";
+                value = evalHomes;
+                available = discoveredHomes;
+              };
+              checkedEval = builtins.deepSeq selectedEvalHosts (builtins.deepSeq selectedEvalHomes true);
               selectedEvalHostSet = lib.genAttrs selectedEvalHosts (_: true);
               hostEvalRecords =
                 map
@@ -1229,49 +1123,8 @@ let
                   );
                 };
 
-              checkedDiagnosticsOutputs =
-                if builtins.isAttrs diagnosticsOutputs then
-                  diagnosticsOutputs
-                else
-                  throw "outputs.diagnostics must be an attribute set";
-              diagnosticKeys = builtins.attrNames checkedDiagnosticsOutputs;
-              supportedDiagnosticKeys = [
-                "discovery"
-                "moduleGraph"
-                "perHostModuleGraph"
-                "doctor"
-                "expectedScaffold"
-                "moduleCoverage"
-              ];
-              supportedDiagnosticKeysSet = {
-                discovery = true;
-                moduleGraph = true;
-                perHostModuleGraph = true;
-                doctor = true;
-                expectedScaffold = true;
-                moduleCoverage = true;
-              };
-              invalidDiagnosticKeys = lib.filter (
-                name: !builtins.hasAttr name supportedDiagnosticKeysSet
-              ) diagnosticKeys;
-              diagnostics = {
-                discovery = checkedDiagnosticsOutputs.discovery or true;
-                moduleGraph = checkedDiagnosticsOutputs.moduleGraph or true;
-                perHostModuleGraph = checkedDiagnosticsOutputs.perHostModuleGraph or false;
-                doctor = checkedDiagnosticsOutputs.doctor or true;
-                expectedScaffold = checkedDiagnosticsOutputs.expectedScaffold or true;
-                moduleCoverage = checkedDiagnosticsOutputs.moduleCoverage or true;
-              };
-              invalidDiagnosticValues = lib.filter (
-                name: !builtins.isBool diagnostics.${name}
-              ) supportedDiagnosticKeys;
-              checkedDiagnostics =
-                if invalidDiagnosticKeys != [ ] then
-                  throw "outputs.diagnostics contains unsupported fields: ${lib.concatStringsSep ", " invalidDiagnosticKeys}"
-                else if invalidDiagnosticValues != [ ] then
-                  throw "outputs.diagnostics fields must be booleans: ${lib.concatStringsSep ", " invalidDiagnosticValues}"
-                else
-                  true;
+              diagnostics = validationTools.validateDiagnostics { inherit diagnosticsOutputs; };
+              checkedDiagnostics = builtins.deepSeq diagnostics true;
 
               graphReport = lib.mapAttrs (_: graph: {
                 inherit (graph)

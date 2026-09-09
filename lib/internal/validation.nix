@@ -1,28 +1,22 @@
 # 验证 flake 输出声明（disabledOutputs、expectedOutputs、evalOutputs）
 { lib }:
 
-let
-  sortNames = lib.sort (a: b: a < b);
-in
-
 {
   # 解析和验证 disabledOutputs 配置
   parseDisabledOutputs =
-    {
-      disabledOutputs,
-      errors,
-    }:
+    { disabledOutputs }:
     if builtins.isList disabledOutputs then
       lib.genAttrs disabledOutputs (_: true)
     else if builtins.isAttrs disabledOutputs then
       lib.mapAttrs (_: names: lib.genAttrs names (_: true)) disabledOutputs
     else
-      errors.invalidDisabledOutputs (builtins.typeOf disabledOutputs);
+      throw ''
+        disabledOutputs must be a list of strings or an attrset mapping output names to lists of names
+        got: ${builtins.typeOf disabledOutputs}'';
 
   # 检查是否禁用了特定输出
   isDisabledByName =
     {
-      lib,
       kind,
       name,
       disabledOutputs,
@@ -38,7 +32,6 @@ in
   # 检查特定系统的输出是否被禁用
   isDisabledForSystem =
     {
-      lib,
       kind,
       name,
       system,
@@ -57,17 +50,13 @@ in
 
   # 验证 outputs.expected 配置
   validateExpectedOutputs =
-    {
-      lib,
-      expectedOutputs,
-      errors,
-    }:
+    { expectedOutputs }:
     let
       checkedExpectedOutputs =
         if builtins.isAttrs expectedOutputs then
           expectedOutputs
         else
-          errors.invalidExpectedOutputs;
+          throw "outputs.expected must be an attribute set";
 
       expectedMode = checkedExpectedOutputs.mode or "subset";
       supportedExpectedFields = [
@@ -96,9 +85,9 @@ in
             exact = true;
           }
         then
-          errors.invalidExpectedOutputsMode
+          throw ''outputs.expected.mode must be "subset" or "exact"''
         else if unknownExpectedFields != [ ] then
-          errors.unsupportedExpectedOutputsFields unknownExpectedFields
+          throw "outputs.expected contains unsupported fields: ${lib.concatStringsSep ", " unknownExpectedFields}"
         else
           expectedFields;
     in
@@ -108,14 +97,10 @@ in
 
   # 验证 outputs.eval 配置
   validateEvalOutputs =
-    {
-      lib,
-      evalOutputs,
-      errors,
-    }:
+    { evalOutputs }:
     let
       checkedEvalOutputs =
-        if builtins.isAttrs evalOutputs then evalOutputs else errors.invalidDiagnosticsOutputs;
+        if builtins.isAttrs evalOutputs then evalOutputs else throw "outputs.eval must be an attribute set";
 
       evalKeys = builtins.attrNames checkedEvalOutputs;
       invalidEvalKeys = lib.filter (
@@ -127,17 +112,16 @@ in
       ) evalKeys;
     in
     if invalidEvalKeys != [ ] then
-      errors.unexpectedEvalOutputsFields invalidEvalKeys
+      throw "outputs.eval contains unsupported fields: ${lib.concatStringsSep ", " invalidEvalKeys}"
     else
       checkedEvalOutputs;
 
-  # 验证和解析字符串列表或布尔值
+  # 验证和解析字符串列表或布尔值（用于 eval 选择）
   stringListOrBool =
     {
       label,
       value,
       available,
-      errors,
     }:
     if builtins.isBool value then
       if value then available else [ ]
@@ -150,29 +134,19 @@ in
       if unknown == [ ] then
         selected
       else
-        errors.unknownEvalTargets {
-          kind = label;
-          targets = unknown;
-        }
+        throw "outputs.eval.${label} references undiscovered targets: ${lib.concatStringsSep ", " unknown}"
     else
-      errors.invalidEvalExpression {
-        kind = label;
-        type = builtins.typeOf value;
-      };
+      throw "outputs.eval.${label} must be a boolean or a list of strings";
 
   # 验证 outputs.diagnostics 配置
   validateDiagnostics =
-    {
-      lib,
-      diagnosticsOutputs,
-      errors,
-    }:
+    { diagnosticsOutputs }:
     let
       checkedDiagnosticsOutputs =
         if builtins.isAttrs diagnosticsOutputs then
           diagnosticsOutputs
         else
-          errors.invalidDiagnosticsOutputs;
+          throw "outputs.diagnostics must be an attribute set";
 
       diagnosticKeys = builtins.attrNames checkedDiagnosticsOutputs;
       supportedDiagnosticKeys = [
@@ -207,14 +181,9 @@ in
       ) supportedDiagnosticKeys;
     in
     if invalidDiagnosticKeys != [ ] then
-      errors.invalidDiagnosticsField {
-        fields = invalidDiagnosticKeys;
-        supported = supportedDiagnosticKeys;
-      }
+      throw "outputs.diagnostics contains unsupported fields: ${lib.concatStringsSep ", " invalidDiagnosticKeys}"
     else if invalidDiagnosticValues != [ ] then
-      errors.invalidDiagnosticsValue {
-        fields = invalidDiagnosticValues;
-      }
+      throw "outputs.diagnostics fields must be booleans: ${lib.concatStringsSep ", " invalidDiagnosticValues}"
     else
       diagnostics;
 }
