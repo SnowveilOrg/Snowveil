@@ -214,6 +214,7 @@ in
     listDir
     walk
     flattenTree
+    readMetadata
     importModules
     groupModules
     ;

@@ -41,23 +41,7 @@ let
   onlyFiles = es: lib.filter (e: e.type == "regular") es;
   nixFiles = es: lib.filter (e: lib.hasSuffix ".nix" e.name) (onlyFiles es);
 
-  readMetadata =
-    path:
-    if !builtins.pathExists path then
-      { }
-    else
-      let
-        value = import path;
-      in
-      if builtins.isAttrs value && !builtins.isFunction value then
-        value
-      else if value == null then
-        { }
-      else
-        errors.metadataFileMustReturnAttrSet {
-          inherit path;
-          type = builtins.typeOf value;
-        };
+  readMetadata = fs.readMetadata;
 
   namedOutputsAt =
     dir:
