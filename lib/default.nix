@@ -898,7 +898,7 @@ let
           ) nixosConfigurations;
 
           systemsSet = lib.genAttrs systems (_: true);
-          checks = forAllSystems systems (
+          buildChecksForSystem =
             sys:
             let
               pkgs = pkgsBySystem.${sys};
@@ -1476,9 +1476,9 @@ let
               }
               // lib.optionalAttrs diagnostics.moduleCoverage {
                 snowveil-module-coverage = moduleCoverageCheck;
-              }
-          );
+              };
 
+          checks = forAllSystems systems buildChecksForSystem;
           moduleOutput = paths: { imports = paths; };
 
           # Flake output schema: 标准 outputs 复用 flake-schemas，
