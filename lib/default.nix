@@ -140,7 +140,7 @@ let
 
       overlayListForHost =
         host:
-        map (overlay: overlays.${overlay.name}) (
+        map (overlay: loadOverlay overlay.path) (
           lib.filter (
             overlay: (hostPlans.${host}.metadata.overlays.${overlay.name} or true)
           ) discovered.overlays
