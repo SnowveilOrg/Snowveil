@@ -20,6 +20,7 @@ in
       groupModules
       patches
       source
+      sops
       ;
   };
 }

@@ -1563,4 +1563,5 @@ in
   inherit (fs) importModules flattenTree groupModules;
   inherit patches;
   source = sourceTools;
+  sops = import ./sops.nix;
 }
