@@ -153,10 +153,11 @@ let
           extraOverlays ? [ ],
           overlays ? overlayList,
         }:
+        # Check simple conditions first: list comparisons are cheaper than attrset equality
         if
-          nixpkgsConfig == { }
+          extraOverlays == [ ]
           && overlays == [ ]
-          && extraOverlays == [ ]
+          && nixpkgsConfig == { }
           && builtins.hasAttr system (nixpkgs.legacyPackages or { })
         then
           nixpkgs.legacyPackages.${system}
