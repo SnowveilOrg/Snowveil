@@ -220,23 +220,28 @@ let
           sideOnly = if side == "nixos" then "nixosOnly" else "homeOnly";
           rolesSet = if roles == null then null else lib.genAttrs roles (_: true);
           profileSet = lib.genAttrs profileEnabled (_: true);
-          selectedByName = lib.mapAttrs (
-            name: node:
-            let
-              record = moduleIndex.${name};
-              roleMatches = record.common || rolesSet == null || builtins.hasAttr record.role rolesSet;
-              defaultPaths = record.shared ++ lib.optionals roleMatches record.${sideOnly};
-              override = overrideMap.${name} or null;
-            in
-            if override == false then
-              [ ]
-            else if override == true || builtins.hasAttr name profileSet then
-              node.paths
-            else
-              defaultPaths
-          ) graph.nodes;
-          allNames = builtins.attrNames selectedByName;
-          enabled = lib.filter (name: selectedByName.${name} != [ ]) allNames;
+          # Filter out explicitly disabled modules first to avoid unnecessary path computations
+          candidateNames = lib.filter (name: (overrideMap.${name} or null) != false) (builtins.attrNames graph.nodes);
+          selectedByName = builtins.listToAttrs (
+            map (
+              name:
+              let
+                node = graph.nodes.${name};
+                record = moduleIndex.${name};
+                roleMatches = record.common || rolesSet == null || builtins.hasAttr record.role rolesSet;
+                defaultPaths = record.shared ++ lib.optionals roleMatches record.${sideOnly};
+                override = overrideMap.${name} or null;
+                paths =
+                  if override == true || builtins.hasAttr name profileSet then
+                    node.paths
+                  else
+                    defaultPaths;
+              in
+              lib.nameValuePair name paths
+            ) candidateNames
+          );
+          allNames = builtins.attrNames graph.nodes;
+          enabled = lib.filter (name: builtins.hasAttr name selectedByName && selectedByName.${name} != [ ]) candidateNames;
           enabledSet = lib.genAttrs enabled (_: true);
           disabled = lib.filter (name: !builtins.hasAttr name enabledSet) allNames;
           disabledReasons = builtins.listToAttrs (
