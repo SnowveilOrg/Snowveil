@@ -128,6 +128,9 @@ let
         in
         follow (lib.head remaining) [ ];
 
+      # Kahn's algorithm builds the result in reverse (tail cons with [ next ] ++ result),
+      # then reverses at the end to produce source-first topological order.
+      # This is deliberate: appending to the end would be O(N²), while head cons + reverse is O(N).
       go =
         remainingCount: ready: indegree: result:
         if remainingCount == 0 then
@@ -428,6 +431,10 @@ let
           ) (lib.filter (conflict: builtins.hasAttr conflict enabledSet) graph.nodes.${name}.conflicts)
         ) enabledNames
       );
+      # When capability edges are present, we must re-run topological sort on the
+      # full graph with the new constraints. This is O(N log N) for the entire graph,
+      # not an incremental update. For large graphs with many capabilities, this can
+      # be a performance bottleneck.
       order =
         if capabilityEdges == [ ] then
           lib.filter (name: builtins.hasAttr name enabledSet) graph.order
