@@ -13,9 +13,6 @@
 
 let
   errors = import ./internal/errors.nix { inherit lib; };
-in
-
-let
   # 元数据规范化和验证函数
   # 规范化主机角色声明为列表
   # 接受：null、单个字符串或字符串列表
