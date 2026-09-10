@@ -2,6 +2,8 @@
 { lib }:
 
 {
+  sortNames = lib.sort (a: b: a < b);
+
   # Validate and normalize a list of non-empty strings
   readStringList =
     {

@@ -2,9 +2,7 @@
 
 let
   utils = import ./utils.nix { inherit lib; };
-  inherit (utils) readStringList;
-
-  sortNames = lib.sort (a: b: a < b);
+  inherit (utils) readStringList sortNames;
 
   dropUntil =
     target: values:

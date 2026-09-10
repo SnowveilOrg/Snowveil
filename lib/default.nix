@@ -22,7 +22,7 @@ let
   validationTools = import ./internal/validation.nix { inherit lib; };
   outputTools = import ./internal/outputs.nix { inherit lib; };
 
-  inherit (utils) renderOptions;
+  inherit (utils) renderOptions sortNames;
   inherit (builtinOptions) optionsSnowveil optionsSnowveilHome;
 
   defaultSystems = [
@@ -31,7 +31,6 @@ let
   ];
 
   forAllSystems = systems: f: lib.genAttrs systems f;
-  sortNames = lib.sort (a: b: a < b);
 
   version = {
     major = 0;
