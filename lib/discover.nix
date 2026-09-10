@@ -290,11 +290,13 @@ let
       rawName = e.name;
       metaPath = projectRoot + "/users/" + rawName + "/meta.nix";
       defPath = projectRoot + "/users/" + rawName + "/default.nix";
-      meta = readMetadata metaPath;
     in
     if !builtins.pathExists metaPath then
       null
     else
+      let
+        meta = readMetadata metaPath;
+      in
       {
         name = rawName;
         inherit metaPath meta;
