@@ -63,12 +63,16 @@ let
       { }
     else
       let
+        errors = import ./internal/errors.nix { inherit lib; };
         value = import path;
       in
       if builtins.isAttrs value && !builtins.isFunction value then
         value
       else
-        throw "metadata file '${toString path}' must directly return an attribute set";
+        errors.metadataFileMustReturnAttrSet {
+          inherit path;
+          type = builtins.typeOf value;
+        };
 
   groupModules =
     dir:
