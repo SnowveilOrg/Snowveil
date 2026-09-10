@@ -69,6 +69,10 @@ let
       }) users;
       byName = builtins.listToAttrs (map (e: lib.nameValuePair e.name e) entries);
       sopsUsers = lib.filter (e: e.n.hashedPasswordSecretName != null) entries;
+      # sopsFile is passed as-is to sops-nix. When the file doesn't exist,
+      # sops.nix's protectPath returns a raw Nix path (not store-tracked);
+      # sops-nix will fail at evaluation if the path is dereferenced.
+      # This is the intended contract: lazy evaluation + explicit error from sops-nix.
       sopsSecrets = builtins.listToAttrs (
         map (e: lib.nameValuePair e.n.hashedPasswordSecretName { inherit sopsFile; }) sopsUsers
       );
