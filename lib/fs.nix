@@ -114,17 +114,31 @@ let
                 builtins.listToAttrs (map (file: lib.nameValuePair (folderOf file) true) relevant)
               )
             );
-        foldersByName = lib.groupBy (record: record.name) folderRecords;
-        collisions = lib.filterAttrs (_: records: builtins.length records > 1) foldersByName;
+        # Detect name collisions by folding over sorted records
+        collisionCheck = lib.foldl'
+          (acc: record:
+            if acc.prev != null && acc.prev.name == record.name then
+              acc // {
+                collisions = acc.collisions ++ [{
+                  name = record.name;
+                  paths = [ acc.prev.folder record.folder ];
+                }];
+                prev = record;
+              }
+            else
+              acc // { prev = record; }
+          )
+          { prev = null; collisions = []; }
+          (lib.sort (a: b: a.name < b.name || (a.name == b.name && a.folder < b.folder)) folderRecords);
         collisionDetails = lib.concatMapStringsSep "\n" (
-          name:
+          item:
           let
-            paths = map (record: dir + "/" + record.folder) collisions.${name};
+            paths = map (folder: dir + "/" + folder) item.paths;
           in
-          "  - '${name}': ${lib.concatStringsSep ", " paths}"
-        ) (builtins.attrNames collisions);
+          "  - '${item.name}': ${lib.concatStringsSep ", " paths}"
+        ) collisionCheck.collisions;
         checkedFolders =
-          if collisions != { } then
+          if collisionCheck.collisions != [ ] then
             throw ''
               module discovery detected name collisions
 
