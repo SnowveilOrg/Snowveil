@@ -897,6 +897,20 @@ let
             )
           ) nixosConfigurations;
 
+          # Validation calls that don't depend on system — lift to top level to avoid
+          # redundant execution across systems
+          _validatedExpected = validationTools.validateExpectedOutputs { inherit expectedOutputs; };
+          expectedMode = _validatedExpected.expectedMode;
+          checkedExpectedFields = _validatedExpected.checkedExpectedFields;
+          supportedExpectedFields = _validatedExpected.supportedExpectedFields;
+
+          checkedEvalOutputs = validationTools.validateEvalOutputs { inherit evalOutputs; };
+          evalHosts = checkedEvalOutputs.hosts or false;
+          evalHomes = checkedEvalOutputs.homes or false;
+
+          diagnostics = validationTools.validateDiagnostics { inherit diagnosticsOutputs; };
+          checkedDiagnostics = builtins.deepSeq diagnostics true;
+
           systemsSet = lib.genAttrs systems (_: true);
           buildChecksForSystem =
             sys:
@@ -920,11 +934,6 @@ let
               discoveredImages = lib.concatMap (
                 hostRecord: map (format: "${hostRecord.name}.${format}") (hostRecord.meta.images.formats or [ ])
               ) discovered.hosts;
-
-              _validatedExpected = validationTools.validateExpectedOutputs { inherit expectedOutputs; };
-              expectedMode = _validatedExpected.expectedMode;
-              checkedExpectedFields = _validatedExpected.checkedExpectedFields;
-              supportedExpectedFields = _validatedExpected.supportedExpectedFields;
 
               stringList =
                 label: value:
@@ -1072,9 +1081,6 @@ let
                 ) kindsToCheck
               );
 
-              checkedEvalOutputs = validationTools.validateEvalOutputs { inherit evalOutputs; };
-              evalHosts = checkedEvalOutputs.hosts or false;
-              evalHomes = checkedEvalOutputs.homes or false;
               selectedEvalHosts = validationTools.stringListOrBool {
                 label = "hosts";
                 value = evalHosts;
@@ -1122,9 +1128,6 @@ let
                     builtins.toJSON homeEvalRecords
                   );
                 };
-
-              diagnostics = validationTools.validateDiagnostics { inherit diagnosticsOutputs; };
-              checkedDiagnostics = builtins.deepSeq diagnostics true;
 
               graphReport = lib.mapAttrs (_: graph: {
                 inherit (graph)
