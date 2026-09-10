@@ -1,27 +1,14 @@
 { lib }:
 
 let
+  utils = import ./utils.nix { inherit lib; };
+  inherit (utils) readStringList;
+
   sortNames = lib.sort (a: b: a < b);
 
   dropUntil =
     target: values:
     if values == [ ] || lib.head values == target then values else dropUntil target (lib.tail values);
-
-  readStringList =
-    {
-      field,
-      metaPath,
-      value,
-    }:
-    if builtins.isList value && lib.all (item: builtins.isString item && item != "") value then
-      lib.unique value
-    else
-      throw ''
-        invalid module dependency metadata
-
-        '${field}' in ${toString metaPath} must be a list of non-empty strings
-        current type: ${builtins.typeOf value}
-      '';
 
   readGroupMembers =
     {
@@ -35,7 +22,7 @@ let
       let
         members = readStringList {
           field = "moduleGroups.${name}";
-          metaPath = "mkFlake";
+          source = "mkFlake";
           inherit value;
         };
       in
@@ -52,17 +39,17 @@ let
         );
         common = readStringList {
           field = "moduleGroups.${name}.common";
-          metaPath = "mkFlake";
+          source = "mkFlake";
           value = value.common or [ ];
         };
         nixos = readStringList {
           field = "moduleGroups.${name}.nixos";
-          metaPath = "mkFlake";
+          source = "mkFlake";
           value = value.nixos or [ ];
         };
         home = readStringList {
           field = "moduleGroups.${name}.home";
-          metaPath = "mkFlake";
+          source = "mkFlake";
           value = value.home or [ ];
         };
         allMembers = lib.unique (common ++ nixos ++ home);

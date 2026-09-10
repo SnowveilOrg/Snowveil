@@ -2,6 +2,22 @@
 { lib }:
 
 {
+  # Validate and normalize a list of non-empty strings
+  readStringList =
+    {
+      field,
+      source,
+      value,
+    }:
+    if builtins.isList value && lib.all (item: builtins.isString item && item != "") value then
+      lib.unique value
+    else
+      throw ''
+        invalid definition
+
+        '${field}' in ${source} must be a list of non-empty strings
+        current type: ${builtins.typeOf value}
+      '';
   renderOptions =
     opts:
     let
