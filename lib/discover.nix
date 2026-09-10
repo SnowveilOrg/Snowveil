@@ -70,10 +70,6 @@ let
       relDir = "hosts/" + rawName;
       metaPath = projectRoot + "/${relDir}/meta.nix";
       defPath = projectRoot + "/${relDir}/default.nix";
-      meta = readMetadata metaPath;
-      fragmentPaths = lib.filter builtins.pathExists (
-        map (name: projectRoot + "/${relDir}/${name}") hostFragmentFiles
-      );
       knownFiles = lib.genAttrs (
         [
           "meta.nix"
@@ -90,9 +86,15 @@ let
         else
           builtins.trace "warning: files ${lib.concatStringsSep ", " strayFiles} under hosts/${rawName}/ are not host magic files and will not be auto-imported; import them explicitly from the host module if needed";
     in
-    if !builtins.pathExists defPath then
+    if !builtins.pathExists metaPath || !builtins.pathExists defPath then
       null
     else
+      let
+        meta = readMetadata metaPath;
+        fragmentPaths = lib.filter builtins.pathExists (
+          map (name: projectRoot + "/${relDir}/${name}") hostFragmentFiles
+        );
+      in
       withStrayWarning {
         dir = rawName;
         name = rawName;
