@@ -168,6 +168,12 @@
       invalidDiagnosticKeys = lib.filter (
         name: !builtins.hasAttr name supportedDiagnosticKeysSet
       ) diagnosticKeys;
+      # Validate types before applying defaults
+      invalidDiagnosticValues = lib.filter (
+        name:
+        builtins.hasAttr name checkedDiagnosticsOutputs
+        && !builtins.isBool checkedDiagnosticsOutputs.${name}
+      ) supportedDiagnosticKeys;
       diagnostics = {
         discovery = checkedDiagnosticsOutputs.discovery or true;
         moduleGraph = checkedDiagnosticsOutputs.moduleGraph or true;
@@ -176,14 +182,11 @@
         expectedScaffold = checkedDiagnosticsOutputs.expectedScaffold or true;
         moduleCoverage = checkedDiagnosticsOutputs.moduleCoverage or true;
       };
-      invalidDiagnosticValues = lib.filter (
-        name: !builtins.isBool diagnostics.${name}
-      ) supportedDiagnosticKeys;
     in
     if invalidDiagnosticKeys != [ ] then
       throw "outputs.diagnostics contains unsupported fields: ${lib.concatStringsSep ", " invalidDiagnosticKeys}"
     else if invalidDiagnosticValues != [ ] then
-      throw "outputs.diagnostics fields must be booleans: ${lib.concatStringsSep ", " invalidDiagnosticValues}"
+      throw "outputs.diagnostics fields must be booleans, got non-boolean values for: ${lib.concatStringsSep ", " invalidDiagnosticValues}"
     else
       diagnostics;
 }
