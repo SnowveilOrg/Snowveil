@@ -3,7 +3,7 @@
 # 遵循 Determinate Systems flake-schemas 的 schema 约定
 # （version / doc / inventory），用于生成 flake 的 `schemas` output，
 # 让 nix flake show、IDE 与第三方工具识别 Snowveil 生成的非标准 outputs
-# （images、deploy、options）。标准 outputs（packages、checks、nixosModules、
+# （images、deploy）。标准 outputs（packages、checks、nixosModules、
 # homeModules 等）的 schema 来自 inputs.flake-schemas.exportedSchemas，
 # 本文件只补充 Snowveil 专属部分，调用方负责 `//` 合并。
 
@@ -48,22 +48,6 @@ in
           builtins.mapAttrs (name: _node: {
             what = "deploy node";
           }) nodes
-        );
-    };
-
-    options = {
-      version = 1;
-      doc = ''
-        The `options` flake output contains per-system JSON documentation of the
-        `snowveil.*` NixOS module options interface.
-      '';
-      inventory =
-        output:
-        mkChildren (
-          builtins.mapAttrs (system: _file: {
-            forSystems = [ system ];
-            what = "options documentation";
-          }) output
         );
     };
   };
