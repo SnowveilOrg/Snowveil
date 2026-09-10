@@ -121,11 +121,13 @@ let
     }:
     let
       knownSet = lib.genAttrs knownNames (_: true);
-      unknown = lib.filter (member: !builtins.hasAttr member knownSet) members;
     in
-    if unknown == [ ] then
+    if lib.all (member: builtins.hasAttr member knownSet) members then
       members
     else
+      let
+        unknown = lib.filter (member: !builtins.hasAttr member knownSet) members;
+      in
       throw ''
         profile references unknown module(s) (${side} side)
 
@@ -141,13 +143,11 @@ let
       declared,
       knownProfiles,
     }:
-    let
-      unknown = lib.filter (profile: !builtins.hasAttr profile knownProfiles) declared;
-    in
-    if unknown == [ ] then
+    if lib.all (profile: builtins.hasAttr profile knownProfiles) declared then
       declared
     else
       let
+        unknown = lib.filter (profile: !builtins.hasAttr profile knownProfiles) declared;
         available = builtins.attrNames knownProfiles;
       in
       throw ''
