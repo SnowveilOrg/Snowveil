@@ -801,7 +801,8 @@ let
             lib.concatMap (
               sys:
               if
-                metadataEnabled {
+                discovered.formatter != null
+                && metadataEnabled {
                   kind = "formatter";
                   name = "default";
                   inherit (discovered.formatter) meta;
@@ -818,15 +819,13 @@ let
           );
 
           deployEnabled =
-            if discovered.deploy == null then
-              false
-            else if !builtins.isBool (discovered.deploy.meta.enable or true) then
-              throw "error: invalid meta value
-
-  deploy meta.enable must be a boolean
-  got: ${builtins.typeOf discovered.deploy.meta.enable}"
-            else
-              (discovered.deploy.meta.enable or true) && !disabledByName "deploy" "default";
+            discovered.deploy != null
+            && metadataEnabled {
+              kind = "deploy";
+              name = "default";
+              inherit (discovered.deploy) meta;
+              system = lib.head systems;
+            };
           deploy = importFile discovered.deploy.path;
 
           userLib = lib.listToAttrs (
