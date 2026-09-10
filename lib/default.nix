@@ -330,26 +330,7 @@ let
         in
         selection.paths ++ discovered.registryModules.home ++ ownDefault ++ ownHost;
 
-      moduleReportForHost =
-        hostRecord:
-        let
-          plan = builtins.getAttr hostRecord.name hostPlans;
-          reportSide =
-            side:
-            let
-              selected = plan.${side};
-            in
-            {
-              enabled = selected.order;
-              inherit (selected)
-                disabled
-                disabledReasons
-                capabilityEdges
-                capabilityRequirements
-                ;
-            };
-        in
-        lib.genAttrs [ "nixos" "home" ] reportSide;
+
 
       systemPlanFor =
         {
@@ -1159,7 +1140,25 @@ let
                 if diagnostics.perHostModuleGraph then
                   builtins.listToAttrs (
                     map (
-                      hostRecord: lib.nameValuePair hostRecord.name (moduleReportForHost hostRecord)
+                      hostRecord:
+                      let
+                        plan = builtins.getAttr hostRecord.name hostPlans;
+                        reportSide =
+                          side:
+                          let
+                            selected = plan.${side};
+                          in
+                          {
+                            enabled = selected.order;
+                            inherit (selected)
+                              disabled
+                              disabledReasons
+                              capabilityEdges
+                              capabilityRequirements
+                              ;
+                          };
+                      in
+                      lib.nameValuePair hostRecord.name (lib.genAttrs [ "nixos" "home" ] reportSide)
                     ) discovered.hosts
                   )
                 else
