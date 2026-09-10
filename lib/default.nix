@@ -282,6 +282,11 @@ let
         target = "global home";
       };
 
+      emptyHomeRecord = {
+        defaultPath = null;
+        hostModules = { };
+      };
+
       hostPlans = lib.mapAttrs (
         host: record:
         let
@@ -318,11 +323,7 @@ let
           selection ? if host == null then globalHomeSelection else hostPlans.${host}.home,
         }:
         let
-          homeRecord =
-            discovered.homesByUser.${user} or {
-              defaultPath = null;
-              hostModules = { };
-            };
+          homeRecord = discovered.homesByUser.${user} or emptyHomeRecord;
           ownDefault = lib.optional (homeRecord.defaultPath != null) homeRecord.defaultPath;
           ownHost = lib.optional (
             host != null && builtins.hasAttr host homeRecord.hostModules
