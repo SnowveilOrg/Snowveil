@@ -18,6 +18,12 @@ Snowveil 是一个基于 Nix Flakes 的声明式配置框架，融合三个优�
 - **分层入口**：`mkFlake` 覆盖常规场景，`mkSystem` / `mkHome` 作为细粒度逃生舱，兼顾零样板与例外处理。
 - **无侵入、渐进式**：作为独立 flake input 引入，可平滑迁移既有配置。
 
+## 为什么不依赖 flake-parts？
+
+Snowveil 不使用 `flake-parts`，因为它要以纯 `nixpkgs.lib` 实现目录发现与 NixOS / Home Manager 装配；这不是「不用 flake-parts」本身的设计目标。两者解决的问题不同：Snowveil 适合希望以目录结构组织主机与模块的配置仓库，flake-parts 提供通用的 Flake 模块系统。正在使用 flake-parts 的仓库可以渐进迁移，或继续在 Snowveil 的自定义 outputs 中使用它。
+
+更多迁移建议见[从 flake-parts 迁移](/migration/from-flake-parts)。
+
 ## 与其他框架对比
 
 | | Snowveil | snowfallorg/lib | flake-fhs | flake.parts | nixos-unified | den |

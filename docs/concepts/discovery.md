@@ -1,4 +1,4 @@
-# 发现机制
+# Discovery
 
 发现（Discovery）是框架将目录树转译为 flake outputs 的核心机制。本页解释发现的原理；完整字段规范见[《Discovery 规范》](/reference/discovery)。
 
