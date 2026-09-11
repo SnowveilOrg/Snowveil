@@ -197,12 +197,12 @@ let
               lib.unique (
                 readStringList {
                   field = key;
-                  metaPath = metadata.path;
+                  source = toString metadata.path;
                   value = raw.${key} or [ ];
                 }
                 ++ readStringList {
                   field = "${side}.${key}";
-                  metaPath = metadata.path;
+                  source = toString metadata.path;
                   value = sideConfig.${key} or [ ];
                 }
               );
