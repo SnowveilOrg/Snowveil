@@ -73,7 +73,7 @@
 - 所有 `options.nix` 与 `default.nix` 始终注入，保证共享接口与中性实现可见。
 - 未声明 `roles` / `role` 时全量注入，保持向后兼容。
 
-`meta.nix` 必须直接返回属性集，因此角色发现不会预执行函数式 host module。`hosts/<name>.<system>/default.nix` 只交给 NixOS module system，可以在模块外层使用真实 `config`。
+`meta.nix` 必须直接返回属性集，因此角色发现不会预执行函数式 host module。`hosts/<name>/default.nix` 只交给 NixOS module system，可以在模块外层使用真实 `config`。
 
 旧配置仍可在 host module 顶层使用 `role = "desktop"` 或 `roles = [ ... ]`。该兼容路径需要用占位参数探测旧式元数据；若模块外层依赖真实 `config`，请迁移到 `meta.nix`。框架交给 NixOS 前会剥离旧式元数据字段。
 

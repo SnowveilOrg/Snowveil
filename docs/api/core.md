@@ -125,7 +125,7 @@ home.embed = {
 主机 `meta.nix` 可以覆盖全局策略（meta.nix 中请使用 `home.embed`/`home.useGlobalPkgs`）：
 
 ```nix
-# hosts/yc-hk-1.x86_64-linux/meta.nix
+# hosts/yc-hk-1/meta.nix
 {
   roles = [ "server" ];
   home.embed = false;

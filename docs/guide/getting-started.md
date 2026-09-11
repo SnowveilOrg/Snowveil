@@ -35,6 +35,34 @@ nix flake init --template github:SnowveilOrg/Snowveil
 
 仅凭这一段，`hosts/`、`homes/`、`modules/`、`packages/`、`overlays/`、`apps/`、`formatter/`、`deploy/`、`lib/`、`shells/`、`checks/` 下的内容就会被自动解析。
 
+## 查看 outputs
+
+创建目录后，运行：
+
+```bash
+nix flake show
+```
+
+结果会包含：
+
+```text
+nixosConfigurations
+└── nixos-desktop
+
+homeConfigurations
+├── rhencloud
+└── rhencloud@nixos-desktop
+
+nixosModules
+homeModules
+packages
+apps
+devShells
+checks
+```
+
+Snowveil 根据目录生成这些 outputs。模块的求值由 NixOS 和 Home Manager 完成。
+
 ## 常用全局配置
 
 ```nix

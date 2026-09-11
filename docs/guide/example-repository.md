@@ -1,58 +1,28 @@
-# 示例配置
+# 示例项目
 
-下面是一份可运行的 Snowveil 配置。它包含一个 NixOS 主机、一个关联用户、一个 Home Manager 配置、两个模块和一个 Profile；实际目录可从仓库中的 [`examples/basic`](https://github.com/SnowveilOrg/Snowveil/tree/main/examples/basic) 查看。
+仓库中的 [`examples/basic`](https://github.com/SnowveilOrg/Snowveil/tree/main/examples/basic) 可以直接运行。下面按目录说明其结构；它还包含 packages、overlays、apps、checks 和 shell。
 
 ```text
 snowveil-example/
 ├── flake.nix
 ├── hosts/
-│   └── desktop/
-│       ├── default.nix
-│       ├── hardware.nix
-│       ├── network.nix
-│       └── meta.nix
-├── homes/
-│   └── rhen/
-│       └── desktop.nix
-├── users/
-│   └── rhen/
-│       ├── default.nix
-│       └── meta.nix
-├── modules/
 │   ├── desktop/
-│   │   └── default.nix
+│   └── server/
+├── users/
+│   └── alice/
+├── homes/
+│   └── alice/
+├── modules/
+│   ├── _common/
+│   ├── desktop/
+│   ├── server/
 │   └── development/
-│       └── default.nix
 └── profiles/
-    └── workstation.nix
+    ├── workstation.nix
+    └── server.nix
 ```
 
-## 运行它
-
-```bash
-git clone https://github.com/SnowveilOrg/Snowveil.git
-cd Snowveil/examples/basic
-
-# 在真正的 NixOS 主机上，把 nixos-desktop 替换为你的主机名。
-sudo nixos-rebuild switch --flake .#nixos-desktop
-
-# 查看 Snowveil 生成的 outputs。
-nix flake show
-```
-
-你会看到类似的结构：
-
-```text
-nixosConfigurations
-└── nixos-desktop
-
-homeConfigurations
-└── rhencloud@nixos-desktop
-```
-
-`examples/basic` 还包含 packages、overlays、apps、checks 和 shell 等可选目录。示例使用本地 Snowveil input 以便仓库自检；自己的配置应使用 GitHub input，见[快速开始](/guide/getting-started)。
-
-## 最小文件
+## 1. 定义 Flake 入口
 
 ```nix
 # flake.nix
@@ -67,11 +37,16 @@ homeConfigurations
 }
 ```
 
+此处不列出主机和模块。`mkFlake` 在项目根目录发现约定目录。
+
+## 2. 添加 Hosts
+
 ```nix
 # hosts/desktop/meta.nix
 {
   system = "x86_64-linux";
   roles = [ "desktop" "development" ];
+  profiles = [ "workstation" ];
 }
 ```
 
@@ -79,25 +54,88 @@ homeConfigurations
 # hosts/desktop/default.nix
 { ... }:
 {
+  networking.hostName = "desktop";
   system.stateVersion = "25.05";
 }
 ```
 
+为服务器创建同样的目录，并用 `roles = [ "server" ];` 和 `profiles = [ "server" ];` 区分配置。每个目录生成一个 `nixosConfigurations.<name>`。
+
+## 3. 添加 User 和 Home
+
 ```nix
-# users/rhen/meta.nix
+# users/alice/meta.nix
 {
-  hosts = [ "desktop" ];
+  hosts = [ "desktop" "server" ];
   uid = 1000;
   extraGroups = [ "wheel" ];
 }
 ```
 
 ```nix
-# homes/rhen/desktop.nix
+# homes/alice/desktop.nix
 { ... }:
 {
   home.stateVersion = "25.05";
 }
 ```
 
-下一步：阅读[第一个 Host](/guide/first-host)，理解每个文件为什么存在。
+`users/alice/meta.nix` 将系统用户安装到列出的主机。`homes/alice/desktop.nix` 生成 `homeConfigurations."alice@desktop"`，并可嵌入 desktop 的 NixOS 配置。
+
+## 4. 添加 Modules
+
+```text
+modules/
+├── _common/base/nixos.nix
+├── desktop/firefox/home.nix
+├── development/tools/home.nix
+└── server/nginx/nixos.nix
+```
+
+`_common` 始终加载；`desktop`、`development` 和 `server` 目录由 Host 的 roles 过滤。模块内容和 magic 文件说明见[Modules](/guide/modules)。
+
+## 5. 添加 Profiles
+
+```nix
+# profiles/workstation.nix
+{
+  nixos = [ "desktop.firefox" ];
+  home = [ "development.tools" ];
+}
+```
+
+Profile 启用列出的模块。Role 决定模块目录是否加载；具体区别见[Roles](/guide/roles)和[Profiles](/guide/profiles)。
+
+## 6. 检查结果
+
+```bash
+git clone https://github.com/SnowveilOrg/Snowveil.git
+cd Snowveil/examples/basic
+nix flake show
+```
+
+输出大致如下：
+
+```text
+nixosConfigurations
+├── desktop
+└── server
+
+homeConfigurations
+└── alice@desktop
+```
+
+构建或切换某个主机：
+
+```bash
+sudo nixos-rebuild switch --flake .#desktop
+```
+
+需要查看框架发现的对象时，构建 discovery report：
+
+```bash
+nix build .#checks.x86_64-linux.snowveil-discovery
+cat result | python3 -m json.tool
+```
+
+该 report 是当前提供的 discovery 调试入口；命令行输出形式的 `snowveil-discovery` app 尚未提供。

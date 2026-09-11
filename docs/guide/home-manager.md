@@ -38,7 +38,7 @@ outputs = inputs:
 或在主机 `meta.nix` 中声明：
 
 ```nix
-# hosts/yc-hk-1.x86_64-linux/meta.nix
+# hosts/yc-hk-1/meta.nix
 {
   home.embed = false;
 }

@@ -2,12 +2,26 @@
 
 角色（role）是框架的**模块过滤机制**：通过在主机元数据中声明角色，自动决定哪些目录下的模块会被注入该主机。
 
+## Role 与 Profile
+
+| | Role | Profile |
+| --- | --- | --- |
+| 声明位置 | Host `meta.nix` | Host `meta.nix` |
+| 核心作用 | 过滤模块目录 | 启用指定模块集合 |
+| 控制范围 | `modules/<role>/` | Profile 中列出的模块 |
+| 是否自动启用模块 | 否 | 是 |
+| 典型用途 | `desktop`、`server` | `workstation`、`gaming` |
+
+**Role 决定主机加载哪些目录；Profile 列出需要启用的模块。**
+
+Role 不用于声明模块依赖。模块依赖见[模块图](/guide/module-dependencies)，Profile 的写法见[Profiles](/guide/profiles)。
+
 ## 声明角色
 
-在 `meta.nix` 中声明（推荐）：
+在 `meta.nix` 中声明：
 
 ```nix
-# hosts/nixos-desktop.x86_64-linux/meta.nix
+# hosts/nixos-desktop/meta.nix
 {
   roles = [
     "desktop"
@@ -50,7 +64,7 @@ modules/
 | `modules/_common/**` | 始终注入 |
 | `modules/<role>/**` | 主机 `roles` 包含 `<role>` |
 | `modules/<role>/**/default.nix` | 始终注入（共享 option） |
-| 未声明 `roles` 的主机 | 全量注入（向后兼容） |
+| 未声明 `roles` 的主机 | 全量注入 |
 
 注意：`default.nix` 永远注入，保证各角色的 option 声明在所有主机可见（`lib.mkEnableOption` 等不会因角色过滤而缺失）。
 

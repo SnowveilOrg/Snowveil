@@ -1,22 +1,19 @@
-# 元数据系统（meta.nix）
+# Metadata
 
-## 原则
-
-框架元数据与 NixOS 配置严格分离：
+`meta.nix` 供 Snowveil 在扫描阶段读取。它说明目录对应的主机、用户或 output 应如何处理；NixOS 和 Home Manager 配置仍写在 `default.nix` 等模块文件中。
 
 | 文件 | 作用 | 求值阶段 |
 | ---- | ---- | -------- |
-| `meta.nix` | 框架元数据（角色、策略） | 发现阶段，纯属性集 |
+| `meta.nix` | Snowveil 读取的目录信息 | 扫描阶段，纯属性集 |
 | `default.nix` | NixOS 模块配置 | NixOS module system |
 
 `meta.nix` 不是 NixOS 模块，不接受 `config`、`pkgs`、`lib` 等模块参数。
 
-## hosts meta.nix 完整字段
+## Host Metadata
 
 ```nix
-# hosts/<name>.<system>/meta.nix
+# hosts/<name>/meta.nix
 {
-  # 若目录名无 .<system> 后缀时必填
   system = "x86_64-linux";
 
   # 角色：过滤 modules/ 下哪些目录被注入该主机
@@ -32,13 +29,9 @@
 }
 ```
 
-**已弃用字段**（仍兼容，但会输出 trace 警告）：
+## Compatibility
 
-- `embedHomeManager` → 使用 `home.embed`
-- `homeManagerUseGlobalPkgs` → 使用 `home.useGlobalPkgs`
-- `homeManager.embed` → 使用 `home.embed`
-- `homeManager.useGlobalPkgs` → 使用 `home.useGlobalPkgs`
-- `role`（单值）→ 仍可使用，与 `roles` 互为别名
+兼容字段和旧式主机目录命名仅用于迁移，详见[Discovery Specification](/reference/discovery)与迁移页面；新配置只应使用 `roles`、`home.embed` 和 `home.useGlobalPkgs`。
 
 ## 优先级
 
@@ -46,7 +39,7 @@
 主机 meta.nix 字段  >  mkFlake 全局参数  >  框架硬编码默认值
 ```
 
-## packages / checks / apps meta.nix
+## Output Metadata
 
 ```nix
 # packages/<name>/meta.nix 或 checks/<name>/meta.nix
@@ -56,9 +49,9 @@
 }
 ```
 
-## 主机级 Snowveil 选择
+## Module Metadata
 
-`hosts/<name>/meta.nix` 可在发现阶段选择模块、overlay 与自动安装的 package；未选择的模块不会导入，未选择的 overlay 不会进入该主机的 `pkgs`。
+`hosts/<name>/meta.nix` 还可以选择模块、overlay 和自动安装的 package。未选中的模块不会导入，未选中的 overlay 不会进入该主机的 `pkgs`。
 
 ```nix
 {
@@ -79,11 +72,11 @@
 }
 ```
 
-- `snowveil.modules.<role>.<module>.enable`：控制模块是否导入；旧的 `modules."<role>.<module>" = false` 保持兼容。
+- `snowveil.modules.<role>.<module>.enable`：控制模块是否导入；旧字段 `modules."<role>.<module>" = false` 仅为迁移保留。
 - `snowveil.overlays.<name>.enable`：控制自动发现 overlay 是否应用到该主机，以及其关联 home-manager 的包集合。
 - `snowveil.packages.<name>`：选择自动安装的 `packages/<name>`；`scope` 为 `"system"` 时写入 `environment.systemPackages`，为 `"home"` 时写入关联用户的 `home.packages`。默认 scope 为 `"system"`。
 
-## homes meta.nix
+## Home Metadata
 
 homes 目录当前不读取 `meta.nix`；位置保留供未来使用（如多架构全局 home 的 system 声明）。
 

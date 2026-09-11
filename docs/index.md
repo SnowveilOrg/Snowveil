@@ -63,9 +63,44 @@ homes/
 </td></tr>
 </table>
 
-Snowveil 负责目录扫描和模块装配；NixOS 与 Home Manager 仍负责模块求值。
+Snowveil 扫描目录并组装模块；NixOS 和 Home Manager 继续处理模块求值。
 
-## 目录与 outputs 的对应关系
+## 文件扫描与模块求值
+
+```text
+                         Snowveil
+                            │
+                ┌───────────┴───────────┐
+                │                       │
+            Discovery               Composition
+                │                       │
+        ┌───────┼────────┐              │
+        ▼       ▼        ▼              ▼
+      hosts/  users/  modules/    Nix module system
+        │       │        │              │
+        ▼       ▼        ▼              │
+      Host    User    Feature            │
+        │       │        │              │
+        └───────┴────────┴──────────────┘
+                            │
+                            ▼
+             nixosConfigurations / homeConfigurations
+             packages / apps / devShells / checks
+```
+
+文件扫描读取目录和 `meta.nix`；随后 Snowveil 按规则选择模块，并交给 NixOS 和 Home Manager。它不改变 option merge、`mkIf`、`mkDefault` 或系统配置的求值方式。
+
+## Snowveil 与 Nix 模块系统
+
+| Snowveil | Nix 模块系统 |
+| --- | --- |
+| 扫描目录 | 求值模块 |
+| 读取 magic 文件和 `meta.nix` | 合并 options |
+| 生成 outputs | 处理 `mkIf`、`mkDefault` |
+| 区分 NixOS 与 Home Manager 模块 | 解析模块依赖 |
+| 传入模块 | 求值最终配置 |
+
+## 目录和 outputs
 
 ```text
                               Snowveil
@@ -87,4 +122,4 @@ Snowveil 负责目录扫描和模块装配；NixOS 与 Home Manager 仍负责模
               nixosConfigurations  homeConfigurations
 ```
 
-可参考仓库中的[示例配置](/guide/example-repository)，或从[普通 flake 迁移](/migration/from-plain-flake)。
+可查看仓库中的[示例项目](/guide/example-repository)，也可以直接阅读[从普通 flake 迁移](/migration/from-plain-flake)。

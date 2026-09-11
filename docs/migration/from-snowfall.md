@@ -45,14 +45,16 @@ modules/desktop/hyprland/default.nix  # lib.mkEnableOption 等
 
 ## 迁移 systems
 
-snowfall 通常在 `lib.mkFlake` 的 `channels` 或 `systems` 中声明架构，Snowveil 从目录后缀或 `meta.nix` 提取：
+snowfall 通常在 `lib.mkFlake` 的 `channels` 或 `systems` 中声明架构。Snowveil 将架构写入主机 metadata：
 
 ```
 # snowfall 主机目录
 systems/x86_64-linux/nixos-desktop/default.nix
 
 # Snowveil 主机目录
-hosts/nixos-desktop.x86_64-linux/default.nix
+hosts/nixos-desktop/
+├── meta.nix       # { system = "x86_64-linux"; }
+└── default.nix
 ```
 
 ## flake.nix 对比

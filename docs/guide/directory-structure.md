@@ -63,19 +63,11 @@
 | `shells/<name>/default.nix` | `devShells.<system>.<name>` |
 | `checks/<name>/default.nix` | `checks.<system>.<name>` |
 
-## 主机命名与 System 声明
+## Compatibility and migration
 
-从 0.4.0 起，hosts 目录改用裸名称：`hosts/<name>/`，system 必须在 `meta.nix` 中显式声明。
+旧式主机目录名不再支持。迁移现有配置时，将目录改为裸主机名，并在 `meta.nix` 中声明 `system`：
 
-**不再支持**的方式：
-- `hosts/nixos-desktop.x86_64-linux/` ❌（旧格式，不再解析后缀）
-
-**唯一支持**的方式：
-- `hosts/nixos-desktop/` ✅（必须在 `meta.nix` 中写 `system = "x86_64-linux"`）
-
-这消除了目录名中的点号歧义（FQDN 型主机名不再造成困惑），并明确表达 system 的强制要求。
-
-## 主机元数据
+## Host Metadata
 
 推荐把角色和框架策略放在独立的 `meta.nix`：
 
@@ -92,7 +84,7 @@
 }
 ```
 
-主机元数据优先于 `mkFlake` 的全局策略。旧字段 `embedHomeManager`、`homeManagerUseGlobalPkgs`、`homeManager.embed`、`homeManager.useGlobalPkgs` 仍兼容，但已弃用，会输出 trace 警告。
+主机 metadata 优先于 `mkFlake` 全局策略。兼容字段的详细说明见[Discovery Specification](/reference/discovery)。
 
 `meta.nix` 必须直接返回属性集，不是 NixOS module，也不会收到 `config` 等模块参数。框架读取它以后，`default.nix` 只由 NixOS module system 正式求值，可以在外层安全使用真实 `config`：
 
@@ -108,7 +100,7 @@
 
 `default.nix` 是纯 NixOS 模块，不再被框架解析框架元数据。新配置请始终使用 `meta.nix` 声明 system、角色和框架策略。
 
-## 用户（一等实体）
+## Users
 
 用户由 `users/<name>/` 目录声明，是框架的一等实体，不再是 `homes/<user>/<host>.nix` 的推导结果。`users/<name>/meta.nix` 是用户与主机关联的**唯一来源**：
 
@@ -128,7 +120,7 @@
 - 否则 → sops 密钥名，`hashedPasswordFile` 指向 `config.sops.secrets.<name>.path`，并自动声明 `sops.secrets.<name>`（来源主机文件）。
 - `users/<name>/default.nix`（可选）是补充模块，用于覆写自动生成字段或追加其他 `users.users.<name>` 属性。
 
-## 主机与 home 自动关联
+## Host 和 Home 关联
 
 - `homes/<user>/<host>.nix` 把用户的 home 配置关联到该主机，并生成 `homeConfigurations."<user>@<host>"`。
 - `homes/<user>/default.nix` 是共享 home，并生成 `homeConfigurations.<user>`。
@@ -150,7 +142,7 @@ outputs = inputs:
 
 主机 `meta.nix` 中的设置优先于全局策略。`snowveil.users` 仍由框架根据 `users/<name>/meta.nix` 的 `hosts` 写入，供模块读取，不应手动赋值。
 
-## Package 元数据
+## Package Metadata
 
 `packages/<name>/meta.nix` 可显式控制架构并消除点号歧义：
 

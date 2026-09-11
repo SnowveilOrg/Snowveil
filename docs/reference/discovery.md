@@ -1,4 +1,18 @@
-# Discovery 规范
+# Discovery Specification
+
+> 这里是实现和兼容性规则。配置 Snowveil 时，通常只需要看[项目结构](/guide/directory-structure)、[指南](/guide/hosts)和[`meta.nix` Reference](/reference/meta)。
+
+## 简要流程
+
+1. 扫描固定目录。
+2. 读取 `meta.nix`。
+3. 建立发现结果和 output 索引。
+4. 按 role、profile 和主机设置选择模块。
+5. 排序模块依赖。
+6. 构造 NixOS 和 Home Manager 配置。
+7. 生成 Flake outputs。
+
+后文是各项规则、排序、冲突和兼容行为的定义。
 
 本文档定义 **Snowveil Discovery Specification v1.3** —— 框架如何将目录树转译为 flake outputs 的完整规则集。规范以实现为准：`lib/discover.nix` 与 `lib/fs.nix` 是本规范的参考实现。
 
