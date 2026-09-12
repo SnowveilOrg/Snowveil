@@ -131,11 +131,14 @@ homeConfigurations
 sudo nixos-rebuild switch --flake .#desktop
 ```
 
-需要查看框架发现的对象时，构建 discovery report：
+需要查看框架发现的对象时：
 
 ```bash
-nix build .#checks.x86_64-linux.snowveil-discovery
-cat result | python3 -m json.tool
+nix run .#snowveil-discovery
 ```
 
-该 report 是当前提供的 discovery 调试入口；命令行输出形式的 `snowveil-discovery` app 尚未提供。
+添加 `--json` 获取完整 JSON 输出：
+
+```bash
+nix run .#snowveil-discovery -- --json
+```

@@ -661,6 +661,7 @@ let
       exampleSystemLayoutPkg = exampleFlake.packages.x86_64-linux.system-layout;
       exampleDiscoveredCheck = exampleFlake.checks.${sys}.example;
       exampleDiscoveryReport = exampleFlake.checks.${sys}.snowveil-discovery;
+      exampleDiscoveryApp = exampleFlake.apps.${sys}.snowveil-discovery;
       exampleDotGraph = exampleFlake.checks.${sys}.snowveil-module-graph-dot;
       exampleDoctor = exampleFlake.checks.${sys}.snowveil-doctor;
       exampleExpectedScaffold = exampleFlake.checks.${sys}.snowveil-expected-scaffold;
@@ -961,7 +962,8 @@ let
           exit 1
         fi
         report=${exampleDiscoveryReport}
-        ${pkgs.jq}/bin/jq -e '.discoverySpecVersion == "1.3"' "$report" >/dev/null
+        ${pkgs.jq}/bin/jq -e '.discoverySpecVersion == "1.4"' "$report" >/dev/null
+        ${pkgs.jq}/bin/jq -e '.users == ["rhencloud"]' "$report" >/dev/null
         ${pkgs.jq}/bin/jq -e '.profiles.workstation.nixos == ["workstation.podman"]' "$report" >/dev/null
         ${pkgs.jq}/bin/jq -e '.profiles.workstation.home == []' "$report" >/dev/null
         ${pkgs.jq}/bin/jq -e '.profiles.personal.nixos == ["workstation.gitconfig"] and .profiles.personal.home == ["workstation.gitconfig"]' "$report" >/dev/null
@@ -1051,6 +1053,8 @@ let
         ${pkgs.jq}/bin/jq -e '.schemaVersion == 1 and .hostCount == 2' ${exampleModuleCoverage} >/dev/null
         ${pkgs.jq}/bin/jq -e '.sides.nixos.hosts."nixos-desktop".percent >= 0' ${exampleModuleCoverage} >/dev/null
         ${pkgs.jq}/bin/jq -e '.sides.home.modules | type == "object"' ${exampleModuleCoverage} >/dev/null
+        test "${exampleDiscoveryApp.type}" = "app"
+        test -n "${exampleDiscoveryApp.program}"
         test ! -e ${cleanedSource}/docs
         test -e ${cleanedSource}/lib/default.nix
         printf '%s\n' ok > "$out"
@@ -1061,6 +1065,9 @@ let
         test -e ${selectiveChecks.snowveil-module-graph-dot}/nixos.dot
         test ! -e ${selectiveChecks.snowveil-module-graph-dot}/hosts
         test "${if builtins.hasAttr "snowveil-discovery" selectiveChecks then "yes" else "no"}" = "no"
+        test "${
+          if builtins.hasAttr "snowveil-discovery" exampleFlakeNoDiagnostics.apps.${sys} then "yes" else "no"
+        }" = "no"
         test "${
           if builtins.hasAttr "snowveil-module-graph-dot" noDiagnosticChecks then "yes" else "no"
         }" = "no"

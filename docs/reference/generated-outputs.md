@@ -48,8 +48,14 @@ nix flake show
 检查发现清单而不构建主机：
 
 ```bash
+nix run .#snowveil-discovery
+```
+
+需要 JSON 时加 `--json`，或使用 CI 专用的 check：
+
+```bash
+nix run .#snowveil-discovery -- --json
 nix build .#checks.x86_64-linux.snowveil-discovery
-cat result | python3 -m json.tool
 ```
 
 若一个目录未生成预期 output，先确认文件名和路径符合上表，再查看[调试与问题排查](/advanced/debugging)。完整的目录扫描和排序契约属于[Discovery Specification](/reference/discovery)。

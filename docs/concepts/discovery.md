@@ -42,11 +42,20 @@ default.nix          → 始终注入（共享 option）
 
 ## 发现调试
 
-`checks.<system>.snowveil-discovery` 是带版本元数据的稳定 JSON 报告：
+`nix run .#snowveil-discovery` 提供人类可读的发现概览，`--json` 输出完整 JSON：
+
+```bash
+# 人类可读
+nix run .#snowveil-discovery
+
+# JSON 输出
+nix run .#snowveil-discovery -- --json
+```
+
+`checks.<system>.snowveil-discovery` 是带版本元数据的稳定 JSON 报告（给 CI / 调试用）：
 
 ```bash
 nix build .#checks.x86_64-linux.snowveil-discovery
-cat result
 ```
 
 ```json

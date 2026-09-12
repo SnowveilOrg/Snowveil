@@ -5,8 +5,14 @@
 查看框架发现了哪些主机、模块和包：
 
 ```bash
+# 人类可读概览
+nix run .#snowveil-discovery
+
+# JSON 输出（适合脚本 / 管道）
+nix run .#snowveil-discovery -- --json
+
+# 原始 JSON check（CI / 调试）
 nix build .#checks.x86_64-linux.snowveil-discovery
-cat result | python3 -m json.tool
 ```
 
 输出字段：

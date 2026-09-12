@@ -104,7 +104,7 @@ modules/
 查看框架发现了哪些模块：
 
 ```bash
-nix build .#checks.x86_64-linux.snowveil-discovery && cat result | python3 -m json.tool
+nix run .#snowveil-discovery
 ```
 
-输出中 `modules` 字段列出所有已发现模块及其路径和角色归属。
+需要完整 JSON 报告时加 `--json`，其中 `nixosModules` / `homeModules` 字段列出所有已发现模块及其角色归属。

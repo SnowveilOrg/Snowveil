@@ -575,6 +575,8 @@ mkFlake 调用
 
 ## Discovery 报告契约
 
-`checks.<system>.snowveil-discovery` 顶层包含 `schemaVersion = 1`、`discoverySpecVersion = "1.3"`、`frameworkVersion` 与 `system`。JSON schema major 只在破坏性结构变化时递增；规范版本独立演进。`hostFiles` 为主机名到实际加载的主机目录 magic 文件列表（按加载顺序）的映射。`profiles` 为 profile 定义映射，`hostProfiles` 为主机声明的 profile 名稱映射。用户 `checks/` 名称不得使用框架保留的 `snowveil-` 前缀。
+`checks.<system>.snowveil-discovery` 顶层包含 `schemaVersion = 1`、`discoverySpecVersion = "1.4"`、`frameworkVersion` 与 `system`。JSON schema major 只在破坏性结构变化时递增；规范版本独立演进。`users` 为发现的用户名列表（v1.4 新增）。`hostFiles` 为主机名到实际加载的主机目录 magic 文件列表（按加载顺序）的映射。`profiles` 为 profile 定义映射，`hostProfiles` 为主机声明的 profile 名稱映射。用户 `checks/` 名称不得使用框架保留的 `snowveil-` 前缀。
+
+`apps.<system>.snowveil-discovery` 提供人类可读的发现概览（`nix run .#snowveil-discovery`），`--json` 输出完整 JSON。该 app 与 `diagnostics.discovery` 开关联动。
 
 发现阶段同时维护 `hostsByName`、`usersByName`、`homesByUser`、`usersByHost` 与模块名索引，后续组合阶段不再重复扫描 users/homes 路径或按列表线性查找主机。`outputs.diagnostics.perHostModuleGraph = false` 时，报告中的 `perHost` 为 `{}`，DOT 输出也省略 `hosts/` 子目录。

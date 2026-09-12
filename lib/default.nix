@@ -1165,7 +1165,7 @@ let
                   { };
               report = {
                 schemaVersion = 1;
-                discoverySpecVersion = "1.3";
+                discoverySpecVersion = "1.4";
                 frameworkVersion = version.string;
                 system = sys;
                 hosts = discoveredHosts;
@@ -1180,6 +1180,7 @@ let
                     hostRecord: lib.nameValuePair hostRecord.name hostPlans.${hostRecord.name}.profiles
                   ) discovered.hosts
                 );
+                users = map (u: u.name) discovered.users;
                 homes = discoveredHomes;
                 packages = discoveredPkgs;
                 apps = discoveredApps;
@@ -1488,6 +1489,65 @@ let
           checks = forAllSystems systems buildChecksForSystem;
           moduleOutput = paths: { imports = paths; };
 
+          discoveryApps = lib.genAttrs systems (
+            sys:
+            let
+              pkgs = pkgsBySystem.${sys};
+              reportJson = checks.${sys}.snowveil-discovery or null;
+            in
+            lib.optionalAttrs (reportJson != null) {
+              snowveil-discovery = {
+                type = "app";
+                program =
+                  let
+                    script = pkgs.writeShellScriptBin "snowveil-discovery" ''
+                      set -eo pipefail
+                      json=${reportJson}
+
+                      if [ "$1" = "--json" ]; then
+                        ${pkgs.jq}/bin/jq . "$json"
+                        exit 0
+                      fi
+
+                      ${pkgs.jq}/bin/jq -r '
+                        def items(key):
+                          .[key] // [] | .[] | "  \u001b[32m✓\u001b[0m " + .;
+
+                        "\u001b[1mSnowveil Discovery\u001b[0m",
+                        "  version: \(.frameworkVersion)  spec: \(.discoverySpecVersion)",
+                        "",
+                        "\u001b[1mHosts\u001b[0m",
+                        items("hosts"),
+                        "",
+                        "\u001b[1mUsers\u001b[0m",
+                        items("users"),
+                        "",
+                        "\u001b[1mModules (NixOS)\u001b[0m",
+                        items("nixosModules"),
+                        "",
+                        "\u001b[1mModules (Home)\u001b[0m",
+                        items("homeModules"),
+                        "",
+                        "\u001b[1mProfiles\u001b[0m",
+                        (.profiles | keys[] | "  \u001b[32m✓\u001b[0m " + .),
+                        "",
+                        "\u001b[1mPackages\u001b[0m",
+                        items("packages"),
+                        "",
+                        if (.overlays | length) > 0 then "\u001b[1mOverlays\u001b[0m", items("overlays"), "" else empty end,
+                        if (.apps | length) > 0 then "\u001b[1mApps\u001b[0m", items("apps"), "" else empty end,
+                        if (.devShells | length) > 0 then "\u001b[1mDev Shells\u001b[0m", items("devShells"), "" else empty end,
+                        if (.checks | length) > 0 then "\u001b[1mChecks\u001b[0m", items("checks"), "" else empty end,
+                        if (.formatter | length) > 0 then "\u001b[1mFormatter\u001b[0m", items("formatter"), "" else empty end,
+                        if (.deploy | length) > 0 then "\u001b[1mDeploy\u001b[0m", items("deploy"), "" else empty end
+                      ' "$json"
+                    '';
+                  in
+                  "${script}/bin/snowveil-discovery";
+              };
+            }
+          );
+
           # Flake output schema: 标准 outputs 复用 flake-schemas，
           # 补充 Snowveil 专属的 images / deploy / options。
           schemas = (inputs.flake-schemas or { }).exportedSchemas or { } // schema.snowveilSchemas;
@@ -1503,11 +1563,15 @@ let
               images
               schemas
               ;
+            apps = lib.genAttrs systems (
+              system:
+              (if appsEnabled then apps.${system} else { })
+              // (discoveryApps.${system} or { })
+            );
             lib = userLib;
             nixosModules = lib.mapAttrs (_: moduleOutput) discovered.localGroupedModules.nixos;
             homeModules = lib.mapAttrs (_: moduleOutput) discovered.localGroupedModules.home;
           }
-          // lib.optionalAttrs appsEnabled { inherit apps; }
           // lib.optionalAttrs (discovered.formatter != null && formatter != { }) { inherit formatter; }
           // lib.optionalAttrs deployEnabled { inherit deploy; };
         in
