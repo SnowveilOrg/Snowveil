@@ -18,6 +18,10 @@
         enable = true;
         scope = "system";
       };
+      legacy-only = {
+        enable = true;
+        scope = "system";
+      };
       overlay-consumer = {
         enable = true;
         scope = "home";

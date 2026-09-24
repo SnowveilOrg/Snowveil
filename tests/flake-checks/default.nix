@@ -9,6 +9,54 @@
 let
   dependencyGraph = import ../../lib/internal/depgraph.nix { inherit lib; };
   profileTools = import ../../lib/internal/profiles.nix { inherit lib; };
+  userTools = import ../../lib/user.nix { inherit lib; };
+  usersModule =
+    users:
+    userTools.mkUsersModule
+      {
+        inherit users;
+        sopsFile = null;
+      }
+      {
+        config.sops.secrets = { };
+        inherit lib;
+      };
+  sharedGroupCheck = builtins.tryEval (
+    builtins.deepSeq (usersModule [
+      {
+        name = "alice";
+        meta = {
+          group = "staff";
+          gid = 100;
+        };
+      }
+      {
+        name = "bob";
+        meta = {
+          group = "staff";
+          gid = 100;
+        };
+      }
+    ]) true
+  );
+  conflictingGroupCheck = builtins.tryEval (
+    builtins.deepSeq (usersModule [
+      {
+        name = "alice";
+        meta = {
+          group = "staff";
+          gid = 100;
+        };
+      }
+      {
+        name = "bob";
+        meta = {
+          group = "staff";
+          gid = 101;
+        };
+      }
+    ]) true
+  );
   exampleRoot = repoRoot + "/examples/basic";
   exampleInputs = {
     inherit nixpkgs home-manager;
@@ -721,6 +769,14 @@ let
       host = pkgs.runCommand "snowveil-host" { } ''
         test "${exampleHost.config.environment.sessionVariables.SNOWVEIL_NIXOS_SPECIAL_ARG}" = "nixos-only"
         test "${toString (builtins.elem examplePkg exampleHost.config.environment.systemPackages)}" = "1"
+        test "${
+          if sys == "x86_64-linux" then
+            toString (
+              builtins.elem exampleFlake.packages.${sys}.legacy-only exampleHost.config.environment.systemPackages
+            )
+          else
+            "1"
+        }" = "1"
         printf '%s\n' "${toString exampleHost.config.snowveil.users}" > "$out"
       '';
       hostSelections = pkgs.runCommand "snowveil-host-selections" { } ''
@@ -738,6 +794,8 @@ let
         test "${toString exampleHost.config.users.groups.rhencloud.gid}" = "1000"
         test "${toString exampleHost.config.users.users.rhencloud.extraGroups}" = "wheel"
         test "${exampleStandaloneHost.config.users.users.rhencloud.group}" = "rhencloud"
+        test "${if sharedGroupCheck.success then "yes" else "no"}" = "yes"
+        test "${if conflictingGroupCheck.success then "yes" else "no"}" = "no"
         printf '%s\n' "${toString exampleHost.config.users.users.rhencloud.uid}" > "$out"
       '';
       home = pkgs.runCommand "snowveil-home" { } ''

@@ -14,7 +14,7 @@
 
 后文是各项规则、排序、冲突和兼容行为的定义。
 
-本文档定义 **Snowveil Discovery Specification v1.3** —— 框架如何将目录树转译为 flake outputs 的完整规则集。规范以实现为准：`lib/discover.nix` 与 `lib/fs.nix` 是本规范的参考实现。
+本文档定义 **Snowveil Discovery Specification v1.4** —— 框架如何将目录树转译为 flake outputs 的完整规则集。规范以实现为准：`lib/discover.nix` 与 `lib/fs.nix` 是本规范的参考实现。
 
 ## 术语
 
@@ -39,16 +39,11 @@
 - `meta.nix` 必须直接返回属性集（`{ ... }`），不能是函数、模块或其他类型。
 - 违反此约定将在发现阶段 `throw` 报错，不会静默忽略。
 - 所有目录类型均支持 `meta.nix`，但各目录可用字段不同（见各节）。
-- `meta.nix` 不存在时等价于 `{}`，所有字段取各自的规范默认值。
+- 输出目录的 `meta.nix` 通常可省略；`hosts/<name>/meta.nix` 必须存在并声明 `system`，`users/<name>/meta.nix` 是关联主机 home 的系统用户元数据。
 
-### 禁用优先级
+### 禁用规则
 
-两种禁用机制独立生效，任一满足即禁用：
-
-1. **`meta.nix { enable = false; }`**：在发现阶段之后、output 构造之前过滤。
-2. **`mkFlake` 的 `outputs.disabled`**：在 output 构造阶段按名称过滤。
-
-命名冲突（同一 output key 由多条规则产生）：发现阶段提前 `throw`，不进入 output 构造。
+`mkFlake` 的 `outputs.disabled` 在 output 构造阶段按名称过滤 packages、apps、checks、devShells、formatter 和 deploy。主机不会由 `meta.nix` 的 `enable` 字段禁用。
 
 ---
 ## hosts/ — NixOS 主机
@@ -64,7 +59,7 @@
 | 1 | `meta.nix` 存在且含 `system = "&lt;system&gt;"` | `name = &lt;dir&gt;`（完整目录名），`system = meta.nix.system` |
 | — | 无 `meta.nix` 或缺 `system` 字段 | `throw` 错误（强制要求） |
 
-**必要条件**：`hosts/&lt;dir&gt;/default.nix` 必须存在，否则无论何种形式均静默跳过。
+**必要条件**：`hosts/&lt;dir&gt;/default.nix` 与 `hosts/&lt;dir&gt;/meta.nix` 必须存在，缺失任一都会报错。
 
 **system 声明**：
 
@@ -195,19 +190,19 @@ hosts/<name>/meta.nix               →  （仅元数据，必须含 system，�
 
 ```
 users/<name>/
-├── meta.nix        →  用户元数据（必需，声明 hosts 等）
+├── meta.nix        →  用户元数据（必需，声明 UID、hosts 等）
 └── default.nix     →  （可选）users.users.<name> 补充模块
 ```
 
-- `meta.nix` 必须存在，否则该目录被忽略（不报错）。
-- `meta.nix` 必须声明 `hosts = [ ... ]`（字符串列表），否则在发现阶段 `throw` 报错。
+- `meta.nix` 必须存在；关联了 `homes/<name>/<host>.nix` 的用户也可省略 `hosts`，由 home 文件自动关联。
+- `meta.nix` 的 `hosts` 必须是字符串列表；用户没有 `hosts` 且没有主机关联 home 时会在发现阶段 `throw` 报错。
 - `default.nix` 是纯 NixOS 模块，会被注入到该用户所属的每台主机。
 
 ### meta.nix 字段（users）
 
 | 字段 | 类型 | 默认值 | 说明 |
 | ---- | ---- | ------ | ---- |
-| `hosts` | `[string]` | — | **必需**，此用户关联的主机名列表（主机必须已发现） |
+| `hosts` | `[string]` | `[]` | 此用户关联的主机名列表（主机必须已发现）；可由主机关联 home 自动补充 |
 | `uid` | `int` | `null` | 系统 UID（`null` 表示由 NixOS 自动分配） |
 | `gid` | `int` | `uid` | 主组 GID（缺省取 `uid`） |
 | `group` | `string` | `name` | 主组名（缺省与用户名一致） |
@@ -246,7 +241,7 @@ homes/<user>/
 └── <host2>.nix      →  homeConfigurations."<user>@<host2>"  （主机关联 home）
 ```
 
-- `&lt;host&gt;` 必须与 `hosts/` 中已发现的某主机 name 完全一致，否则该文件被忽略（不报错）。
+- `&lt;host&gt;` 必须与 `hosts/` 中已发现的某主机 name 完全一致，且 `users/&lt;user&gt;/meta.nix` 必须存在；否则在发现阶段报错。
 - `default.nix` 专用于全局 home，不会生成 `&lt;user&gt;@default` output。
 - 同一用户目录下可同时存在 `default.nix` 与若干 `&lt;host&gt;.nix`，互不冲突。
 - 子目录遍历**不递归**；`homes/&lt;user&gt;/sub/foo.nix` 会被忽略。
@@ -266,7 +261,7 @@ homes/<user>/
     
     ### 自动嵌入 NixOS
         
-    当 `users/&lt;name&gt;/meta.nix` 的 `hosts` 包含该主机，且 `homes/&lt;name&gt;/&lt;host&gt;.nix` 存在时：
+    当 `users/&lt;name&gt;/meta.nix` 的 `hosts` 包含该主机，或 `homes/&lt;name&gt;/&lt;host&gt;.nix` 存在时：
     
 1. 框架将 `&lt;name&gt;` 写入 `nixosConfigurations.&lt;host&gt;` 的 `config.snowveil.users`。
 2. 若该主机的 `home.embed` 为 `true`，框架自动注入 `home-manager.users.&lt;name&gt;` 模块（无需在主机模块中手写 `home-manager.users`）。

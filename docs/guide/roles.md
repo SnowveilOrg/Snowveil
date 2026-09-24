@@ -63,10 +63,11 @@ modules/
 | -------- | -------- |
 | `modules/_common/**` | 始终注入 |
 | `modules/<role>/**` | 主机 `roles` 包含 `<role>` |
-| `modules/<role>/**/default.nix` | 始终注入（共享 option） |
+| `modules/<role>/**/options.nix` | 始终注入（接口声明） |
+| `modules/<role>/**/default.nix` | 始终注入（中性共享实现） |
 | 未声明 `roles` 的主机 | 全量注入 |
 
-注意：`default.nix` 永远注入，保证各角色的 option 声明在所有主机可见（`lib.mkEnableOption` 等不会因角色过滤而缺失）。
+注意：`options.nix` 与 `default.nix` 永远注入。将接口声明放在 `options.nix`，不要在 `default.nix` 中使用仅属于 NixOS 或 Home Manager 的选项。
 
 ## 组合角色
 

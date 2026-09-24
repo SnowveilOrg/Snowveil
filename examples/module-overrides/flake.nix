@@ -14,8 +14,7 @@
       snowveil,
     }:
     snowveil.lib.mkFlake {
-      inherit self;
-      inputs = { inherit nixpkgs; };
+      inputs = { inherit self nixpkgs; };
       systems = [ "x86_64-linux" ];
       root = ./.;
     };

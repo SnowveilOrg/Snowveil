@@ -68,6 +68,15 @@ let
         };
       }) users;
       byName = builtins.listToAttrs (map (e: lib.nameValuePair e.name e) entries);
+      groups = lib.groupBy (e: e.n.group) entries;
+      groupGids = lib.mapAttrs (_: groupEntries: lib.unique (map (e: e.n.gid) groupEntries)) groups;
+      validatedGroups = lib.mapAttrs (
+        group: gids:
+        if builtins.length gids == 1 then
+          mkSystemGroup (lib.head gids)
+        else
+          throw "users assigned to group '${group}' must declare the same gid"
+      ) groupGids;
       sopsUsers = lib.filter (e: e.n.hashedPasswordSecretName != null) entries;
       # sopsFile is passed as-is to sops-nix. When the file doesn't exist,
       # sops.nix's protectPath returns a raw Nix path (not store-tracked);
@@ -86,9 +95,7 @@ let
         }
       ) byName;
 
-      users.groups = builtins.listToAttrs (
-        map (e: lib.nameValuePair e.n.group (mkSystemGroup e.n.gid)) entries
-      );
+      users.groups = validatedGroups;
     }
     // lib.optionalAttrs (sopsSecrets != { }) {
       sops.secrets = sopsSecrets;

@@ -47,10 +47,10 @@ let
   # 例如：{ desktop = { gaming = { enable = true; }; }; } -> { "desktop.gaming" = true; }
   flattenSelections =
     {
-      kind,  # 出错消息中的种类名称（"modules"、"overlays" 等）
-      value,  # 要展平的结构
-      validate,  # 用于单个选择的验证函数
-      prefix ? [ ],  # 当前的嵌套键前缀
+      kind, # 出错消息中的种类名称（"modules"、"overlays" 等）
+      value, # 要展平的结构
+      validate, # 用于单个选择的验证函数
+      prefix ? [ ], # 当前的嵌套键前缀
     }:
     if !builtins.isAttrs value then
       errors.invalidMetadataType {
@@ -127,6 +127,34 @@ let
           { inherit enable scope; };
     };
 
+  normalizeLegacyPackageName =
+    package:
+    let
+      parts = lib.splitString "." package.name;
+      suffix = lib.last parts;
+    in
+    if
+      package.explicitSystem == null
+      && !(package.meta ? systems)
+      && builtins.elem suffix lib.systems.flakeExposed
+    then
+      lib.concatStringsSep "." (lib.init parts)
+    else
+      package.name;
+
+  packageNameAliases = builtins.listToAttrs (
+    lib.concatMap (
+      package:
+      let
+        name = normalizeLegacyPackageName package;
+      in
+      [
+        (lib.nameValuePair package.name name)
+        (lib.nameValuePair name name)
+      ]
+    ) discovered.packages
+  );
+
   validateSelections =
     {
       kind,
@@ -196,8 +224,10 @@ let
       };
       packages = validateSelections {
         kind = "packages";
-        known = lib.genAttrs (map (package: package.name) discovered.packages) (_: true);
-        selections = normalizePackageSelections (snowveilMeta.packages or { });
+        known = lib.genAttrs (builtins.attrValues packageNameAliases) (_: true);
+        selections = lib.mapAttrs' (
+          name: value: lib.nameValuePair (packageNameAliases.${name} or name) value
+        ) (normalizePackageSelections (snowveilMeta.packages or { }));
       };
       embedHomeManager = readBoolField {
         newValue = homeMeta.embed or null;
@@ -231,10 +261,7 @@ let
       };
     };
 
-  resolveHost =
-    host:
-    discovered.hostsByName.${host}
-      or (errors.unknownHost host);
+  resolveHost = host: discovered.hostsByName.${host} or (errors.unknownHost host);
 
   hostMetadataFor =
     { host, ... }:

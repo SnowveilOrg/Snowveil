@@ -8,7 +8,7 @@
 #     ├── default.nix       (必需) 主机配置模块
 #     ├── meta.nix          (必需) system、roles、profiles 等元数据
 #     ├── hardware.nix      (可选) 硬件配置
-#     ├── disk.nix          (可选) 分区配置  
+#     ├── disk.nix          (可选) 分区配置
 #     └── network.nix       (可选) 网络配置
 #
 # 模块目录约定 (modules/):
@@ -86,8 +86,10 @@ let
         else
           builtins.trace "warning: files ${lib.concatStringsSep ", " strayFiles} under hosts/${rawName}/ are not host magic files and will not be auto-imported; import them explicitly from the host module if needed";
     in
-    if !builtins.pathExists metaPath || !builtins.pathExists defPath then
-      null
+    if !builtins.pathExists metaPath then
+      throw "hosts/${rawName}/meta.nix is required"
+    else if !builtins.pathExists defPath then
+      throw "hosts/${rawName}/default.nix is required"
     else
       let
         meta = readMetadata metaPath;
@@ -106,10 +108,7 @@ let
           let
             sys = meta.system or null;
           in
-          if sys == null then
-            errors.missingHostSystem rawName
-          else
-            sys;
+          if sys == null then errors.missingHostSystem rawName else sys;
       };
 
   localGroupedModules =
@@ -274,8 +273,11 @@ let
   homesByUser = builtins.listToAttrs (map (home: lib.nameValuePair home.user home) homes);
 
   normalizeHosts =
-    user: hosts:
-    if hosts == null then
+    user: declaredHosts: homeHosts:
+    let
+      hosts = if declaredHosts == null then homeHosts else lib.unique (declaredHosts ++ homeHosts);
+    in
+    if hosts == [ ] then
       errors.missingUserHosts user
     else if !builtins.isList hosts then
       errors.invalidUserHosts user
@@ -301,11 +303,37 @@ let
         name = rawName;
         inherit metaPath meta;
         defaultPath = if builtins.pathExists defPath then defPath else null;
-        hosts = normalizeHosts rawName (meta.hosts or null);
+        hosts = normalizeHosts rawName (meta.hosts or null) (homesByUser.${rawName}.hosts or [ ]);
       };
 
   users = lib.filter (user: user != null) (map parseUserDir (onlyDirs (listDirAt "users")));
   usersByName = builtins.listToAttrs (map (user: lib.nameValuePair user.name user) users);
+  homeHostEntries = lib.concatMap (
+    home:
+    map (host: {
+      inherit host;
+      user = home.user;
+    }) home.hosts
+  ) homes;
+  validateHomeHosts = lib.forEach homeHostEntries (
+    entry:
+    if !builtins.hasAttr entry.host hostsByName then
+      throw "homes/${entry.user}/${entry.host}.nix references an undiscovered host"
+    else if !builtins.hasAttr entry.user usersByName then
+      throw "homes/${entry.user}/${entry.host}.nix requires users/${entry.user}/meta.nix"
+    else
+      true
+  );
+  validateUserHosts = lib.forEach users (
+    user:
+    lib.forEach user.hosts (
+      host:
+      if builtins.hasAttr host hostsByName then
+        true
+      else
+        throw "users/${user.name}/meta.nix references an undiscovered host '${host}'"
+    )
+  );
   usersByHost = lib.mapAttrs (_: us: map (user: user.name) us) (
     lib.groupBy (entry: entry.host) (
       lib.concatMap (
@@ -314,7 +342,7 @@ let
           inherit host;
           inherit (user) name;
         }) user.hosts
-      ) users
+      ) (builtins.deepSeq [ validateHomeHosts validateUserHosts ] users)
     )
   );
 

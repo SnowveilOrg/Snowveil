@@ -14,11 +14,11 @@ homes/
     └── default.nix          # homeConfigurations.work
 ```
 
-`<host>.nix` 的文件名必须与 `hosts/` 中已发现的主机名完全一致，否则静默忽略。
+`<host>.nix` 的文件名必须与 `hosts/` 中已发现的主机名完全一致；未知主机或缺少对应 `users/<user>/meta.nix` 会在求值时直接报错。
 
 ## 嵌入式 HM
 
-当 `users/<user>/meta.nix` 的 `hosts` 包含该主机时，框架自动将该用户注入 `nixosConfigurations.<host>` 的 `config.snowveil.users`，并生成 `users.users.<user>` / `users.groups.<user>`；在嵌入启用时生成 `home-manager.users.<user>` 配置，无需手写。
+当 `homes/<user>/<host>.nix` 存在，或 `users/<user>/meta.nix` 的 `hosts` 包含该主机时，框架自动将该用户注入 `nixosConfigurations.<host>` 的 `config.snowveil.users`，并生成 `users.users.<user>` / `users.groups.<user>`；在嵌入启用时生成 `home-manager.users.<user>` 配置，无需手写。
 
 全局启用，单独关闭：
 

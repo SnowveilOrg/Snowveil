@@ -29,10 +29,8 @@ nix build .#checks.x86_64-linux.snowveil-discovery
 
 原因：
 
-1. 目录后缀不合法（不在 `lib.systems.flakeExposed` 中）
-2. 缺少 `default.nix`
-3. 在 `outputs.disabled` 中
-4. `meta.nix` 的 `enable = false`
+1. 缺少 `meta.nix` 或 `default.nix`
+2. `meta.nix` 未声明 `system`
 
 检查：
 
@@ -68,17 +66,16 @@ nix flake check path:. --show-trace 2>&1 | grep -i "skip\|trace\|warn"
 
 ## trace 调试
 
-框架在发现阶段跳过或降级处理时会输出 `builtins.trace` 信息：
+框架会在使用已弃用元数据字段或发现未导入的主机文件时输出 `builtins.trace` 警告：
 
 ```bash
-nix flake check path:. --show-trace 2>&1 | grep "trace:"
+nix flake check path:. --show-trace 2>&1 | grep "warning:"
 ```
 
 常见 trace：
 
-- `trace: [Snowveil] 主机 foo 缺少 default.nix，跳过` → 缺少主机文件
-- `trace: [Snowveil] meta.nix 字段 embedHomeManager 已弃用` → 使用了旧字段
-- `trace: [Snowveil] 发现 homes/... 但找不到对应主机` → host.nix 文件名与主机目录不匹配
+- `warning: meta.nix field 'embedHomeManager' is deprecated` → 使用了旧字段
+- `warning: files ... under hosts/foo/ are not host magic files` → 该文件需由主机模块显式导入
 
 ## 隔离求值
 
