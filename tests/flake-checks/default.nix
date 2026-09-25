@@ -248,7 +248,10 @@ let
         apps.x86_64-linux = [ "hello" ];
         checks.x86_64-linux = [ "example" ];
         devShells.x86_64-linux = [ "default" ];
-        overlays = [ "example" ];
+        overlays = [
+          "aarch64-only"
+          "example"
+        ];
         nixosModules = [
           "_common.always"
           "desktop.example"
@@ -926,6 +929,8 @@ let
       '';
       overlay = pkgs.runCommand "snowveil-overlay" { } ''
         printf '%s\n' "${if builtins.isFunction exampleOverlay then "ok" else "bad"}" > "$out"
+        test "${if builtins.hasAttr "aarch64-only" exampleFlake.overlays then "yes" else "no"}" = "no"
+        test "${if builtins.hasAttr "disabled" exampleFlake.overlays then "yes" else "no"}" = "no"
       '';
       devshell = pkgs.runCommand "snowveil-devshell" { } ''
         printf '%s\n' "${if exampleDevshell ? name then "ok" else "bad"}" > "$out"
@@ -1020,8 +1025,9 @@ let
           exit 1
         fi
         report=${exampleDiscoveryReport}
-        ${pkgs.jq}/bin/jq -e '.discoverySpecVersion == "1.4"' "$report" >/dev/null
+        ${pkgs.jq}/bin/jq -e '.discoverySpecVersion == "1.5"' "$report" >/dev/null
         ${pkgs.jq}/bin/jq -e '.users == ["rhencloud"]' "$report" >/dev/null
+        ${pkgs.jq}/bin/jq -e '.overlayMetadata.example.description == null' "$report" >/dev/null
         ${pkgs.jq}/bin/jq -e '.profiles.workstation.nixos == ["workstation.podman"]' "$report" >/dev/null
         ${pkgs.jq}/bin/jq -e '.profiles.workstation.home == []' "$report" >/dev/null
         ${pkgs.jq}/bin/jq -e '.profiles.personal.nixos == ["workstation.gitconfig"] and .profiles.personal.home == ["workstation.gitconfig"]' "$report" >/dev/null

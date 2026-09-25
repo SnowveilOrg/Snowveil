@@ -42,12 +42,14 @@
 ## Output Metadata
 
 ```nix
-# packages/<name>/meta.nix 或 checks/<name>/meta.nix
+# packages/<name>/meta.nix、checks/<name>/meta.nix 或 overlays/<name>/meta.nix
 {
   enable = true;          # false 时不生成该 output
   systems = [ "x86_64-linux" ];  # 限制架构（null 表示所有 systems）
 }
 ```
+
+overlay 还可声明 `description`。`systems` 限制自动注入 overlay 的架构；启用的 overlay 仍导出为全局的 `overlays.<name>`，以符合标准 Flake schema。
 
 ## Module Metadata
 

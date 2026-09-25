@@ -132,16 +132,45 @@ let
         in
         if isStructured then imported { inherit inputs self snowveil; } else imported;
 
+      validateOverlayMetadata =
+        overlay:
+        let
+          enabled = overlay.meta.enable or true;
+          supportedSystems = overlay.meta.systems or null;
+        in
+        if !builtins.isBool enabled then
+          throw "error: overlays.${overlay.name} meta.enable must be a boolean"
+        else if
+          supportedSystems != null
+          && !(builtins.isList supportedSystems && lib.all builtins.isString supportedSystems)
+        then
+          throw "error: overlays.${overlay.name} meta.systems must be a list of strings"
+        else
+          enabled;
+      overlaySupportsSystem =
+        overlay: system:
+        let
+          supportedSystems = overlay.meta.systems or null;
+        in
+        validateOverlayMetadata overlay
+        && (supportedSystems == null || builtins.elem system supportedSystems);
+      overlayDefinitions = lib.filter validateOverlayMetadata discovered.overlays;
       overlays = lib.listToAttrs (
-        map (o: lib.nameValuePair o.name (loadOverlay o.path)) discovered.overlays
+        map (o: lib.nameValuePair o.name (loadOverlay o.path)) overlayDefinitions
       );
-      overlayList = lib.attrValues overlays;
+      overlayListForSystem =
+        system:
+        map (overlay: loadOverlay overlay.path) (
+          lib.filter (overlay: overlaySupportsSystem overlay system) discovered.overlays
+        );
 
       overlayListForHost =
-        host:
-        map (overlay: overlays.${overlay.name}) (
+        host: system:
+        map (overlay: loadOverlay overlay.path) (
           lib.filter (
-            overlay: (hostPlans.${host}.metadata.overlays.${overlay.name} or true)
+            overlay:
+            overlaySupportsSystem overlay system
+            && (hostPlans.${host}.metadata.overlays.${overlay.name} or true)
           ) discovered.overlays
         );
 
@@ -150,7 +179,7 @@ let
           system,
           nixpkgsConfig ? { },
           extraOverlays ? [ ],
-          overlays ? overlayList,
+          overlays ? overlayListForSystem system,
         }:
         # Check simple conditions first: list comparisons are cheaper than attrset equality
         if
@@ -221,7 +250,9 @@ let
           rolesSet = if roles == null then null else lib.genAttrs roles (_: true);
           profileSet = lib.genAttrs profileEnabled (_: true);
           # Filter out explicitly disabled modules first to avoid unnecessary path computations
-          candidateNames = lib.filter (name: (overrideMap.${name} or null) != false) (builtins.attrNames graph.nodes);
+          candidateNames = lib.filter (name: (overrideMap.${name} or null) != false) (
+            builtins.attrNames graph.nodes
+          );
           selectedByName = builtins.listToAttrs (
             map (
               name:
@@ -231,17 +262,15 @@ let
                 roleMatches = record.common || rolesSet == null || builtins.hasAttr record.role rolesSet;
                 defaultPaths = record.shared ++ lib.optionals roleMatches record.${sideOnly};
                 override = overrideMap.${name} or null;
-                paths =
-                  if override == true || builtins.hasAttr name profileSet then
-                    node.paths
-                  else
-                    defaultPaths;
+                paths = if override == true || builtins.hasAttr name profileSet then node.paths else defaultPaths;
               in
               lib.nameValuePair name paths
             ) candidateNames
           );
           allNames = builtins.attrNames graph.nodes;
-          enabled = lib.filter (name: builtins.hasAttr name selectedByName && selectedByName.${name} != [ ]) candidateNames;
+          enabled = lib.filter (
+            name: builtins.hasAttr name selectedByName && selectedByName.${name} != [ ]
+          ) candidateNames;
           enabledSet = lib.genAttrs enabled (_: true);
           disabled = lib.filter (name: !builtins.hasAttr name enabledSet) allNames;
           disabledReasons = builtins.listToAttrs (
@@ -330,8 +359,6 @@ let
         in
         selection.paths ++ discovered.registryModules.home ++ ownDefault ++ ownHost;
 
-
-
       systemPlanFor =
         {
           host,
@@ -354,7 +381,7 @@ let
           plan = hostPlans.${host};
           hostRecord = plan.record;
           sys = if system == null then hostRecord.system else system;
-          hostOverlays = overlayListForHost host;
+          hostOverlays = overlayListForHost host sys;
           pkgs =
             if _pkgs == null then
               pkgsFor {
@@ -564,7 +591,7 @@ let
                   system = sys;
                   inherit nixpkgsConfig;
                   inherit extraOverlays;
-                  overlays = overlayListForHost host;
+                  overlays = overlayListForHost host sys;
                 }
             else
               _pkgs;
@@ -682,18 +709,28 @@ let
           disabledByName =
             kind: name:
             validationTools.isDisabledByName {
-              inherit kind name disabledOutputs disabledSet;
+              inherit
+                kind
+                name
+                disabledOutputs
+                disabledSet
+                ;
             };
 
           disabledForSystem =
             kind: name: system:
             validationTools.isDisabledForSystem {
-              inherit kind name system disabledOutputs disabledSet disabledByName;
+              inherit
+                kind
+                name
+                system
+                disabledOutputs
+                disabledSet
+                disabledByName
+                ;
             };
 
-          metadataEnabled =
-            args:
-            outputTools.metadataEnabled (args // { inherit disabledForSystem; });
+          metadataEnabled = args: outputTools.metadataEnabled (args // { inherit disabledForSystem; });
 
           uniqueDefinitions = outputTools.uniqueDefinitions;
 
@@ -909,6 +946,9 @@ let
               discoveredShells = builtins.attrNames devShells.${sys};
               discoveredUserChecks = builtins.attrNames discoveredChecks.${sys};
               discoveredOverlays = builtins.attrNames overlays;
+              discoveredOverlayMetadata = builtins.listToAttrs (
+                map (overlay: lib.nameValuePair overlay.name overlay.meta) overlayDefinitions
+              );
               discoveredNixosModules = builtins.attrNames discovered.localGroupedModules.nixos;
               discoveredHomeModules = builtins.attrNames discovered.localGroupedModules.home;
               discoveredFormatter = lib.optional (builtins.hasAttr sys formatter) sys;
@@ -1018,6 +1058,7 @@ let
                 checks = discoveredUserChecks;
                 devShells = discoveredShells;
                 overlays = discoveredOverlays;
+                overlayMetadata = discoveredOverlayMetadata;
                 nixosModules = discoveredNixosModules;
                 homeModules = discoveredHomeModules;
                 formatter = discoveredFormatter;
@@ -1165,7 +1206,7 @@ let
                   { };
               report = {
                 schemaVersion = 1;
-                discoverySpecVersion = "1.4";
+                discoverySpecVersion = "1.5";
                 frameworkVersion = version.string;
                 system = sys;
                 hosts = discoveredHosts;
@@ -1187,6 +1228,7 @@ let
                 checks = discoveredUserChecks;
                 devShells = discoveredShells;
                 overlays = discoveredOverlays;
+                overlayMetadata = discoveredOverlayMetadata;
                 nixosModules = discoveredNixosModules;
                 homeModules = discoveredHomeModules;
                 formatter = discoveredFormatter;
@@ -1564,9 +1606,7 @@ let
               schemas
               ;
             apps = lib.genAttrs systems (
-              system:
-              (if appsEnabled then apps.${system} else { })
-              // (discoveryApps.${system} or { })
+              system: (if appsEnabled then apps.${system} else { }) // (discoveryApps.${system} or { })
             );
             lib = userLib;
             nixosModules = lib.mapAttrs (_: moduleOutput) discovered.localGroupedModules.nixos;

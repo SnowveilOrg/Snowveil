@@ -14,7 +14,7 @@
 
 后文是各项规则、排序、冲突和兼容行为的定义。
 
-本文档定义 **Snowveil Discovery Specification v1.4** —— 框架如何将目录树转译为 flake outputs 的完整规则集。规范以实现为准：`lib/discover.nix` 与 `lib/fs.nix` 是本规范的参考实现。
+本文档定义 **Snowveil Discovery Specification v1.5** —— 框架如何将目录树转译为 flake outputs 的完整规则集。规范以实现为准：`lib/discover.nix` 与 `lib/fs.nix` 是本规范的参考实现。
 
 ## 术语
 
@@ -451,7 +451,7 @@ packages/<name>.<system>/default.nix   →  packages.<system>.<name>   （旧式
 overlays/<name>/default.nix  →  overlays.<name>
 ```
 
-所有自动发现的 overlays 自动应用到：NixOS pkgs、独立 HM pkgs、嵌入式 HM pkgs（当 `useGlobalPkgs = false` 时）、packages / devShells / checks / apps / formatter 的 pkgs。
+启用的自动发现 overlays 会应用到：NixOS pkgs、独立 HM pkgs、嵌入式 HM pkgs（当 `useGlobalPkgs = false` 时）、packages / devShells / checks / apps / formatter 的 pkgs。声明 `systems` 后，仅会注入这些架构的 package 集合；由于标准 Flake `overlays.<name>` 没有 per-system 命名空间，启用的 overlay 仍保留该全局输出。
 
 ### Overlay 文件签名
 
@@ -462,7 +462,20 @@ overlays/<name>/default.nix  →  overlays.<name>
 
 ### meta.nix 字段（overlays）
 
-overlays 目录当前不读取 `meta.nix`。
+```nix
+# overlays/unstable/meta.nix
+{
+  enable = true;
+  systems = [ "x86_64-linux" ];
+  description = "Unstable packages";
+}
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+| ---- | ---- | ------ | ---- |
+| `enable` | `bool` | `true` | 是否导出并自动注入 overlay |
+| `systems` | `[string]` | `null` | 限制自动注入的架构；不影响全局 `overlays.<name>` 的命名 |
+| `description` | `string` | `null` | 供发现报告、CLI 与其他工具消费的说明 |
 
 ---
 
@@ -570,7 +583,7 @@ mkFlake 调用
 
 ## Discovery 报告契约
 
-`checks.<system>.snowveil-discovery` 顶层包含 `schemaVersion = 1`、`discoverySpecVersion = "1.4"`、`frameworkVersion` 与 `system`。JSON schema major 只在破坏性结构变化时递增；规范版本独立演进。`users` 为发现的用户名列表（v1.4 新增）。`hostFiles` 为主机名到实际加载的主机目录 magic 文件列表（按加载顺序）的映射。`profiles` 为 profile 定义映射，`hostProfiles` 为主机声明的 profile 名稱映射。用户 `checks/` 名称不得使用框架保留的 `snowveil-` 前缀。
+`checks.<system>.snowveil-discovery` 顶层包含 `schemaVersion = 1`、`discoverySpecVersion = "1.5"`、`frameworkVersion` 与 `system`。JSON schema major 只在破坏性结构变化时递增；规范版本独立演进。`users` 为发现的用户名列表（v1.4 新增）。`hostFiles` 为主机名到实际加载的主机目录 magic 文件列表（按加载顺序）的映射。`profiles` 为 profile 定义映射，`hostProfiles` 为主机声明的 profile 名称映射；`overlayMetadata` 按 overlay 名称保留启用 overlay 的 `meta.nix` 内容，供 CLI、IDE 与其他工具消费。用户 `checks/` 名称不得使用框架保留的 `snowveil-` 前缀。
 
 `apps.<system>.snowveil-discovery` 提供人类可读的发现概览（`nix run .#snowveil-discovery`），`--json` 输出完整 JSON。该 app 与 `diagnostics.discovery` 开关联动。
 
