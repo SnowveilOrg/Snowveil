@@ -85,31 +85,53 @@ let
         profile '${name}' (${source}) must be either a list of strings or an attrset with extends/common/nixos/home fields
       '';
 
+  # 从路径中截取到目标为止的后缀，用于拼接继承环的错误信息。
+  dropUntil =
+    target: values:
+    if values == [ ] || lib.head values == target then values else dropUntil target (lib.tail values);
+
   resolveProfiles =
     definitions:
     let
       names = builtins.attrNames definitions;
       knownSet = lib.genAttrs names (_: true);
-      resolve =
-        trail: name:
+
+      # 先做一遍 DFS 校验（环优先于未知父级），错误信息与原先一致。
+      visit =
+        done: trail: name:
+        if builtins.hasAttr name done then
+          done
+        else if builtins.elem name trail then
+          throw "profile inheritance cycle: ${lib.concatStringsSep " -> " (dropUntil name trail ++ [ name ])}"
+        else
+          let
+            definition = definitions.${name};
+            unknown = lib.filter (parent: !builtins.hasAttr parent knownSet) definition.extends;
+          in
+          if unknown != [ ] then
+            throw "profile '${name}' (${definition.source}) extends unknown profile(s): ${lib.concatStringsSep ", " unknown}"
+          else
+            lib.foldl' (acc: parent: visit acc (trail ++ [ name ]) parent) done definition.extends;
+      check = lib.foldl' (done: name: visit done [ ] name) { } names;
+
+      # 递归绑定配合 Nix 的惰性求值，使每个 profile 只解析一次（原先菱形继承会指数级重复求值）。
+      resolved = lib.genAttrs names (
+        name:
         let
           definition = definitions.${name};
-          cycle = trail ++ [ name ];
-          unknown = lib.filter (parent: !builtins.hasAttr parent knownSet) definition.extends;
-          inherited = map (resolve cycle) definition.extends;
         in
-        if builtins.elem name trail then
-          throw "profile inheritance cycle: ${lib.concatStringsSep " -> " cycle}"
-        else if unknown != [ ] then
-          throw "profile '${name}' (${definition.source}) extends unknown profile(s): ${lib.concatStringsSep ", " unknown}"
-        else
-          {
-            inherit (definition) source extends;
-            nixos = lib.unique (lib.concatMap (profile: profile.nixos) inherited ++ definition.nixos);
-            home = lib.unique (lib.concatMap (profile: profile.home) inherited ++ definition.home);
-          };
+        {
+          inherit (definition) source extends;
+          nixos = lib.unique (
+            lib.concatMap (parent: resolved.${parent}.nixos) definition.extends ++ definition.nixos
+          );
+          home = lib.unique (
+            lib.concatMap (parent: resolved.${parent}.home) definition.extends ++ definition.home
+          );
+        }
+      );
     in
-    lib.genAttrs names (resolve [ ]);
+    builtins.seq check resolved;
 
   checkMembers =
     {

@@ -150,8 +150,8 @@ let
     ) (nixFiles (listDirAt "profiles"))
   );
 
-  duplicateProfiles = lib.intersectLists (builtins.attrNames fileProfiles) (
-    builtins.attrNames profiles
+  duplicateProfiles = lib.filter (name: builtins.hasAttr name profiles) (
+    builtins.attrNames fileProfiles
   );
 
   allProfileDefs =

@@ -39,9 +39,9 @@
         description = o.description or null;
         default =
           let
-            d = builtins.tryEval (o.default or null);
+            rendered = builtins.tryEval (builtins.toJSON (o.default or null));
           in
-          if d.success then (builtins.tryEval (builtins.toJSON d.value)).value else null;
+          if rendered.success then rendered.value else null;
       };
       go =
         o:

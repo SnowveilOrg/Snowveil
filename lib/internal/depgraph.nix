@@ -8,6 +8,19 @@ let
     target: values:
     if values == [ ] || lib.head values == target then values else dropUntil target (lib.tail values);
 
+  # 归并两个升序列表，结果保持升序。Kahn 每轮只把少量新就绪节点并入有序 frontier，
+  # 用线性归并替代整表重排序。
+  mergeSorted =
+    left: right:
+    if left == [ ] then
+      right
+    else if right == [ ] then
+      left
+    else if lib.head left < lib.head right then
+      [ (lib.head left) ] ++ mergeSorted (lib.tail left) right
+    else
+      [ (lib.head right) ] ++ mergeSorted left (lib.tail right);
+
   readGroupMembers =
     {
       name,
@@ -136,9 +149,9 @@ let
             next = lib.head ready;
             deps = dependents.${next} or [ ];
             newVals = map (dep: lib.nameValuePair dep (indegree.${dep} - 1)) deps;
-            newIndegree = indegree // builtins.listToAttrs newVals;
+            newIndegree = if newVals == [ ] then indegree else indegree // builtins.listToAttrs newVals;
             newlyReady = lib.filter (nv: nv.value == 0) newVals;
-            nextReady = sortNames (lib.tail ready ++ map (nv: nv.name) newlyReady);
+            nextReady = mergeSorted (lib.tail ready) (map (nv: nv.name) newlyReady);
           in
           go (remainingCount - 1) nextReady newIndegree ([ next ] ++ result);
     in
@@ -450,7 +463,8 @@ let
     else if missingCapabilities != [ ] then
       let
         details = lib.concatMapStringsSep "\n" (
-          item: "  - '${item.name}' requires capability '${item.capability}', but no enabled provider offers it"
+          item:
+          "  - '${item.name}' requires capability '${item.capability}', but no enabled provider offers it"
         ) missingCapabilities;
       in
       throw ''

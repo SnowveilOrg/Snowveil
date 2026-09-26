@@ -95,10 +95,6 @@ let
           "options.nix"
           "default.nix"
         ];
-        sideMagic = {
-          nixos = sharedMagic ++ [ "nixos.nix" ];
-          home = sharedMagic ++ [ "home.nix" ];
-        };
         magicSet = lib.genAttrs magic (_: true);
         relevant = walk dir magicSet;
         folderOf = file: lib.removeSuffix ("/" + file.base) file.rel;
@@ -115,21 +111,32 @@ let
               )
             );
         # Detect name collisions by folding over sorted records
-        collisionCheck = lib.foldl'
-          (acc: record:
-            if acc.prev != null && acc.prev.name == record.name then
-              acc // {
-                collisions = acc.collisions ++ [{
-                  name = record.name;
-                  paths = [ acc.prev.folder record.folder ];
-                }];
-                prev = record;
-              }
-            else
-              acc // { prev = record; }
-          )
-          { prev = null; collisions = []; }
-          (lib.sort (a: b: a.name < b.name || (a.name == b.name && a.folder < b.folder)) folderRecords);
+        collisionCheck =
+          lib.foldl'
+            (
+              acc: record:
+              if acc.prev != null && acc.prev.name == record.name then
+                acc
+                // {
+                  collisions = acc.collisions ++ [
+                    {
+                      name = record.name;
+                      paths = [
+                        acc.prev.folder
+                        record.folder
+                      ];
+                    }
+                  ];
+                  prev = record;
+                }
+              else
+                acc // { prev = record; }
+            )
+            {
+              prev = null;
+              collisions = [ ];
+            }
+            (lib.sort (a: b: a.name < b.name || (a.name == b.name && a.folder < b.folder)) folderRecords);
         collisionDetails = lib.concatMapStringsSep "\n" (
           item:
           let
@@ -156,56 +163,67 @@ let
             relative = if folder == "" then base else "${folder}/${base}";
           in
           fileIndex.${relative} or null;
-        pathsFor =
-          side: folder: lib.filter (path: path != null) (map (base: pathFor folder base) sideMagic.${side});
-        group =
-          side:
+        # 每个目录只解析一次 shared / 分侧文件与 meta，供 nixos/home/index 复用。
+        recordFor =
+          record:
+          let
+            shared = lib.filter (path: path != null) (map (base: pathFor record.folder base) sharedMagic);
+            nixosOnly =
+              let
+                p = pathFor record.folder "nixos.nix";
+              in
+              lib.optional (p != null) p;
+            homeOnly =
+              let
+                p = pathFor record.folder "home.nix";
+              in
+              lib.optional (p != null) p;
+            metaPath = dir + "/" + record.folder + "/meta.nix";
+          in
+          record
+          // {
+            inherit
+              shared
+              nixosOnly
+              homeOnly
+              metaPath
+              ;
+            nixos = shared ++ nixosOnly;
+            home = shared ++ homeOnly;
+            meta = {
+              path = metaPath;
+              value = readMetadata metaPath;
+            };
+          };
+        records = map recordFor checkedFolders;
+        groupOf =
+          key:
           builtins.listToAttrs (
             lib.concatMap (
-              record:
-              let
-                paths = pathsFor side record.folder;
-              in
-              lib.optional (paths != [ ]) (lib.nameValuePair record.name paths)
-            ) checkedFolders
+              record: lib.optional (record.${key} != [ ]) (lib.nameValuePair record.name record.${key})
+            ) records
           );
-        meta = builtins.listToAttrs (
-          map (
-            record:
-            let
-              path = dir + "/" + record.folder + "/meta.nix";
-            in
-            lib.nameValuePair record.name {
-              inherit path;
-              value = readMetadata path;
-            }
-          ) checkedFolders
-        );
-        nixos = group "nixos";
-        home = group "home";
+        nixos = groupOf "nixos";
+        home = groupOf "home";
+        meta = builtins.listToAttrs (map (record: lib.nameValuePair record.name record.meta) records);
         index = builtins.listToAttrs (
           map (
             record:
             lib.nameValuePair record.name {
-              inherit (record) folder name;
+              inherit (record)
+                folder
+                name
+                shared
+                nixosOnly
+                homeOnly
+                nixos
+                home
+                meta
+                ;
               role = lib.head (lib.splitString "/" record.folder);
               common = lib.hasPrefix "_" record.folder;
-              shared = lib.filter (path: path != null) (map (base: pathFor record.folder base) sharedMagic);
-              nixosOnly =
-                let
-                  p = pathFor record.folder "nixos.nix";
-                in
-                lib.optional (p != null) p;
-              homeOnly =
-                let
-                  p = pathFor record.folder "home.nix";
-                in
-                lib.optional (p != null) p;
-              nixos = nixos.${record.name} or [ ];
-              home = home.${record.name} or [ ];
-              meta = meta.${record.name};
             }
-          ) checkedFolders
+          ) records
         );
       in
       {

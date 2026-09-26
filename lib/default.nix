@@ -152,26 +152,30 @@ let
         let
           supportedSystems = overlay.meta.systems or null;
         in
-        validateOverlayMetadata overlay
-        && (supportedSystems == null || builtins.elem system supportedSystems);
+        supportedSystems == null || builtins.elem system supportedSystems;
       overlayDefinitions = lib.filter validateOverlayMetadata discovered.overlays;
       overlays = lib.listToAttrs (
         map (o: lib.nameValuePair o.name (loadOverlay o.path)) overlayDefinitions
       );
+      # 复用已验证通过的 overlay 定义与已加载实例，避免跨系统/主机重复 import 与重复校验。
+      overlayEntries = map (o: {
+        overlay = o;
+        loaded = overlays.${o.name};
+      }) overlayDefinitions;
       overlayListForSystem =
         system:
-        map (overlay: loadOverlay overlay.path) (
-          lib.filter (overlay: overlaySupportsSystem overlay system) discovered.overlays
+        map (entry: entry.loaded) (
+          lib.filter (entry: overlaySupportsSystem entry.overlay system) overlayEntries
         );
 
       overlayListForHost =
         host: system:
-        map (overlay: loadOverlay overlay.path) (
+        map (entry: entry.loaded) (
           lib.filter (
-            overlay:
-            overlaySupportsSystem overlay system
-            && (hostPlans.${host}.metadata.overlays.${overlay.name} or true)
-          ) discovered.overlays
+            entry:
+            overlaySupportsSystem entry.overlay system
+            && (hostPlans.${host}.metadata.overlays.${entry.overlay.name} or true)
+          ) overlayEntries
         );
 
       pkgsFor =
@@ -249,10 +253,9 @@ let
           sideOnly = if side == "nixos" then "nixosOnly" else "homeOnly";
           rolesSet = if roles == null then null else lib.genAttrs roles (_: true);
           profileSet = lib.genAttrs profileEnabled (_: true);
+          allNames = builtins.attrNames graph.nodes;
           # Filter out explicitly disabled modules first to avoid unnecessary path computations
-          candidateNames = lib.filter (name: (overrideMap.${name} or null) != false) (
-            builtins.attrNames graph.nodes
-          );
+          candidateNames = lib.filter (name: (overrideMap.${name} or null) != false) allNames;
           selectedByName = builtins.listToAttrs (
             map (
               name:
@@ -267,7 +270,6 @@ let
               lib.nameValuePair name paths
             ) candidateNames
           );
-          allNames = builtins.attrNames graph.nodes;
           enabled = lib.filter (
             name: builtins.hasAttr name selectedByName && selectedByName.${name} != [ ]
           ) candidateNames;
@@ -699,7 +701,7 @@ let
                   embedHomeManager
                   homeManagerUseGlobalPkgs
                   ;
-                hostPackages = hostPackagesFor h.name h.system;
+                hostPackages = hostPackagesPlan.${h.name};
               })
             ) discovered.hosts
           );
@@ -767,8 +769,12 @@ let
             }
           ) discovered.packages;
 
-          hostPackagesFor =
-            host: system:
+          # 按主机预计算一次，nixosConfigurations 与 homeConfigurations 共享结果，避免重复过滤。
+          hostPackagesPlan = lib.mapAttrs (
+            host: record:
+            let
+              inherit (record) system;
+            in
             map (package: package // { scope = hostPlans.${host}.metadata.packages.${package.name}.scope; }) (
               lib.filter (
                 package:
@@ -780,7 +786,8 @@ let
                 }
                 && (hostPlans.${host}.metadata.packages.${package.name}.enable or false)
               ) packageDefs
-            );
+            )
+          ) discovered.hostsByName;
 
           packages = forAllSystems systems (
             sys:
@@ -892,7 +899,7 @@ let
                         nixpkgsConfig
                         extraOverlays
                         ;
-                      hostPackages = hostPackagesFor host discovered.hostsByName.${host}.system;
+                      hostPackages = hostPackagesPlan.${host};
                     })
                   ) (lib.filter (host: builtins.hasAttr host discovered.hostsByName) h.hosts)
                 ) discovered.homes
@@ -920,6 +927,54 @@ let
             )
           ) nixosConfigurations;
 
+          renderNix =
+            value:
+            if builtins.isBool value then
+              if value then "true" else "false"
+            else if builtins.isString value then
+              builtins.toJSON value
+            else if builtins.isList value then
+              "[ ${lib.concatMapStringsSep " " renderNix value} ]"
+            else if builtins.isAttrs value then
+              "{\n${
+                lib.concatMapStringsSep "" (name: "  ${builtins.toJSON name} = ${renderNix value.${name}};\n") (
+                  builtins.attrNames value
+                )
+              }}"
+            else
+              throw "cannot render outputs.expected scaffold value of type ${builtins.typeOf value}";
+
+          # outputs.expected 脚手架与 system 无关，提到顶层避免每个 system 重复渲染。
+          expectedScaffold = {
+            mode = "exact";
+            hosts = map (host: host.name) discovered.hosts;
+            homes = builtins.attrNames homeConfigurations;
+            packages = lib.genAttrs systems (system: builtins.attrNames packages.${system});
+            apps = lib.genAttrs systems (
+              system: if appsEnabled then builtins.attrNames apps.${system} else [ ]
+            );
+            checks = lib.genAttrs systems (system: builtins.attrNames discoveredChecks.${system});
+            devShells = lib.genAttrs systems (system: builtins.attrNames devShells.${system});
+            overlays = builtins.attrNames overlays;
+            nixosModules = builtins.attrNames discovered.localGroupedModules.nixos;
+            homeModules = builtins.attrNames discovered.localGroupedModules.home;
+            formatter = builtins.attrNames formatter;
+            deploy = {
+              present = deployEnabled;
+              nodes =
+                if deployEnabled && builtins.isAttrs deploy && builtins.isAttrs (deploy.nodes or null) then
+                  builtins.attrNames deploy.nodes
+                else
+                  [ ];
+            };
+            images = builtins.listToAttrs (
+              map (
+                hostRecord: lib.nameValuePair hostRecord.name (hostRecord.meta.images.formats or [ ])
+              ) discovered.hosts
+            );
+          };
+          expectedScaffoldSource = renderNix expectedScaffold;
+
           # Validation calls that don't depend on system — lift to top level to avoid
           # redundant execution across systems
           _validatedExpected = validationTools.validateExpectedOutputs { inherit expectedOutputs; };
@@ -935,6 +990,64 @@ let
           checkedDiagnostics = builtins.deepSeq diagnostics true;
 
           systemsSet = lib.genAttrs systems (_: true);
+
+          # doctor 结论与 system 无关，提到顶层避免每个 system 重复计算。
+          doctorShared =
+            let
+              hasHomeManager = inputs ? home-manager;
+              hostsWithHomes = lib.filter (host: (discovered.usersByHost.${host} or [ ]) != [ ]) (
+                builtins.attrNames discovered.hostsByName
+              );
+              disabledUnusedByAny =
+                let
+                  sideReport =
+                    side:
+                    let
+                      enabledUnion = lib.unique (
+                        lib.concatMap (host: hostPlans.${host}.${side}.order) (builtins.attrNames discovered.hostsByName)
+                      );
+                      allNames = builtins.attrNames discovered.moduleGraph.${side}.nodes;
+                    in
+                    lib.filter (name: !builtins.elem name enabledUnion) allNames;
+                in
+                {
+                  nixos = sideReport "nixos";
+                  home = sideReport "home";
+                };
+              findings =
+                lib.optionals (!hasHomeManager && hostsWithHomes != [ ]) [
+                  {
+                    severity = "error";
+                    kind = "missing_home_manager_input";
+                    message = "hosts ${lib.concatStringsSep ", " hostsWithHomes} have associated homes but no home-manager input is wired; add home-manager to flake inputs";
+                  }
+                ]
+                ++
+                  lib.concatMap
+                    (
+                      side:
+                      map (name: {
+                        severity = "warning";
+                        kind = "unused_module";
+                        message = "${side} module '${name}' is defined but not enabled by any host";
+                      }) disabledUnusedByAny.${side}
+                    )
+                    [
+                      "nixos"
+                      "home"
+                    ];
+              sortedFindings = lib.sort (
+                a: b: a.kind < b.kind || (a.kind == b.kind && a.message < b.message)
+              ) findings;
+            in
+            {
+              findings = sortedFindings;
+              ok = sortedFindings == [ ] || lib.all (finding: finding.severity != "error") sortedFindings;
+              counts = {
+                error = builtins.length (lib.filter (f: f.severity == "error") sortedFindings);
+                warning = builtins.length (lib.filter (f: f.severity == "warning") sortedFindings);
+              };
+            };
           buildChecksForSystem =
             sys:
             let
@@ -1321,62 +1434,12 @@ let
                     ) dotFiles}
                   '';
 
-              doctorFindings =
-                let
-                  hasHomeManager = inputs ? home-manager;
-                  hostsWithHomes = lib.filter (host: (discovered.usersByHost.${host} or [ ]) != [ ]) (
-                    builtins.attrNames discovered.hostsByName
-                  );
-                  disabledUnusedByAny =
-                    let
-                      sideReport =
-                        side:
-                        let
-                          enabledUnion = lib.unique (
-                            lib.concatMap (host: hostPlans.${host}.${side}.order) (builtins.attrNames discovered.hostsByName)
-                          );
-                          allNames = builtins.attrNames discovered.moduleGraph.${side}.nodes;
-                        in
-                        lib.filter (name: !builtins.elem name enabledUnion) allNames;
-                    in
-                    {
-                      nixos = sideReport "nixos";
-                      home = sideReport "home";
-                    };
-                  findings =
-                    lib.optionals (!hasHomeManager && hostsWithHomes != [ ]) [
-                      {
-                        severity = "error";
-                        kind = "missing_home_manager_input";
-                        message = "hosts ${lib.concatStringsSep ", " hostsWithHomes} have associated homes but no home-manager input is wired; add home-manager to flake inputs";
-                      }
-                    ]
-                    ++
-                      lib.concatMap
-                        (
-                          side:
-                          map (name: {
-                            severity = "warning";
-                            kind = "unused_module";
-                            message = "${side} module '${name}' is defined but not enabled by any host";
-                          }) disabledUnusedByAny.${side}
-                        )
-                        [
-                          "nixos"
-                          "home"
-                        ];
-                in
-                {
-                  schemaVersion = 1;
-                  system = sys;
-                  frameworkVersion = version.string;
-                  ok = findings == [ ] || lib.all (finding: finding.severity != "error") findings;
-                  counts = {
-                    error = builtins.length (lib.filter (f: f.severity == "error") findings);
-                    warning = builtins.length (lib.filter (f: f.severity == "warning") findings);
-                  };
-                  findings = lib.sort (a: b: a.kind < b.kind || (a.kind == b.kind && a.message < b.message)) findings;
-                };
+              doctorFindings = {
+                schemaVersion = 1;
+                system = sys;
+                frameworkVersion = version.string;
+                inherit (doctorShared) ok counts findings;
+              };
               doctorReportJson = builtins.toJSON doctorFindings;
               doctorReportText = pkgs.writeText "snowveil-doctor-${sys}.txt" (
                 if doctorFindings.findings == [ ] then
@@ -1403,52 +1466,8 @@ let
                 ''}
               '';
 
-              renderNix =
-                value:
-                if builtins.isBool value then
-                  if value then "true" else "false"
-                else if builtins.isString value then
-                  builtins.toJSON value
-                else if builtins.isList value then
-                  "[ ${lib.concatMapStringsSep " " renderNix value} ]"
-                else if builtins.isAttrs value then
-                  "{\n${
-                    lib.concatMapStringsSep "" (name: "  ${builtins.toJSON name} = ${renderNix value.${name}};\n") (
-                      builtins.attrNames value
-                    )
-                  }}"
-                else
-                  throw "cannot render outputs.expected scaffold value of type ${builtins.typeOf value}";
-              expectedScaffold = {
-                mode = "exact";
-                hosts = discoveredHosts;
-                homes = discoveredHomes;
-                packages = lib.genAttrs systems (system: builtins.attrNames packages.${system});
-                apps = lib.genAttrs systems (
-                  system: if appsEnabled then builtins.attrNames apps.${system} else [ ]
-                );
-                checks = lib.genAttrs systems (system: builtins.attrNames discoveredChecks.${system});
-                devShells = lib.genAttrs systems (system: builtins.attrNames devShells.${system});
-                overlays = discoveredOverlays;
-                nixosModules = discoveredNixosModules;
-                homeModules = discoveredHomeModules;
-                formatter = builtins.attrNames formatter;
-                deploy = {
-                  present = deployEnabled;
-                  nodes =
-                    if deployEnabled && builtins.isAttrs deploy && builtins.isAttrs (deploy.nodes or null) then
-                      builtins.attrNames deploy.nodes
-                    else
-                      [ ];
-                };
-                images = builtins.listToAttrs (
-                  map (
-                    hostRecord: lib.nameValuePair hostRecord.name (hostRecord.meta.images.formats or [ ])
-                  ) discovered.hosts
-                );
-              };
               expectedScaffoldCheck = pkgs.writeText "snowveil-expected-scaffold-${sys}.nix" ''
-                outputs.expected = ${renderNix expectedScaffold};
+                outputs.expected = ${expectedScaffoldSource};
               '';
 
               coverageHosts = lib.filter (hostRecord: hostRecord.system == sys) discovered.hosts;
