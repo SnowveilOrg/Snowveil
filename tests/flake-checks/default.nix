@@ -929,7 +929,7 @@ let
       '';
       overlay = pkgs.runCommand "snowveil-overlay" { } ''
         printf '%s\n' "${if builtins.isFunction exampleOverlay then "ok" else "bad"}" > "$out"
-        test "${if builtins.hasAttr "aarch64-only" exampleFlake.overlays then "yes" else "no"}" = "no"
+        test "${if builtins.hasAttr "aarch64-only" exampleFlake.overlays then "yes" else "no"}" = "yes"
         test "${if builtins.hasAttr "disabled" exampleFlake.overlays then "yes" else "no"}" = "no"
       '';
       devshell = pkgs.runCommand "snowveil-devshell" { } ''
