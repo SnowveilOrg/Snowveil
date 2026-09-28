@@ -1130,7 +1130,12 @@ let
         test ! -e ${selectiveChecks.snowveil-module-graph-dot}/hosts
         test "${if builtins.hasAttr "snowveil-discovery" selectiveChecks then "yes" else "no"}" = "no"
         test "${
-          if builtins.hasAttr "snowveil-discovery" exampleFlakeNoDiagnostics.apps.${sys} then "yes" else "no"
+          # exampleFlakeNoDiagnostics 固定 systems = [ "x86_64-linux" ]，
+          # 用 ${sys} 索引会在 aarch64 侧找不到 apps 属性。
+          if builtins.hasAttr "snowveil-discovery" exampleFlakeNoDiagnostics.apps.x86_64-linux then
+            "yes"
+          else
+            "no"
         }" = "no"
         test "${
           if builtins.hasAttr "snowveil-module-graph-dot" noDiagnosticChecks then "yes" else "no"
