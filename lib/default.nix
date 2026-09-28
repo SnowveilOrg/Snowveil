@@ -619,13 +619,13 @@ let
         };
 
       mkFlake =
-        # 扁平参数（extraOutputs / extraSpecialArgs / extraModules /
+        # 扁平参数（systems / extraOutputs / extraSpecialArgs / extraModules /
         # extraNixosModules / extraHomeModules / nixpkgsConfig / extraOverlays /
         # embedHomeManager / homeManagerUseGlobalPkgs / disabledOutputs /
         # expectedOutputs）仍受支持以保证向后兼容，通过 args_raw 读取。
         # 嵌套命名空间（nixpkgs / nixos / home / outputs）优先。
+        # systems 省略时按发现结果自动推导（见下方 derivedSystems）。
         args_raw@{
-          systems ? defaultSystems,
           # nixpkgs = { config?; overlays?; }
           nixpkgs ? { },
           # nixos = { modules?; specialArgs?; }
@@ -640,6 +640,55 @@ let
           # 解析嵌套命名空间，与扁平参数合并（嵌套命名空间优先）。
           # 扁平参数通过 args_raw 读取，避免 let 递归绑定遮蔽同名参数。
           flatOr = name: default: if builtins.hasAttr name args_raw then args_raw.${name} else default;
+
+          # systems 未显式传入时，从发现结果推导「声明过的系统」：
+          #   - 主机 meta.system（主要成本来源：避免为无关系统构建整套输出）
+          #   - packages / apps / checks / devShells / formatter / deploy 的 meta.systems
+          #   - packages/<system>/<name> 目录布局与 <name>.<system> legacy 后缀
+          # 顺序保持 defaultSystems 在前，确保 lib.head systems 与历史默认一致；
+          # 完全无声明（例如纯 home-manager 项目）时回退 defaultSystems。
+          explicitSystemsArg = flatOr "systems" null;
+          flakeKnownSystemSet = lib.genAttrs lib.systems.flakeExposed (_: true);
+          metaDeclaredSystems = items: lib.concatMap (item: (item.meta or { }).systems or [ ]) items;
+          legacyDeclaredSystems = lib.concatMap (
+            package:
+            let
+              suffix = lib.last (lib.splitString "." package.name);
+            in
+            if
+              package.explicitSystem == null
+              && !(package.meta or { }) ? systems
+              && builtins.hasAttr suffix flakeKnownSystemSet
+            then
+              [ suffix ]
+            else
+              [ ]
+          ) discovered.packages;
+          derivedSystemsRaw = lib.unique (
+            (map (host: host.system) discovered.hosts)
+            ++ metaDeclaredSystems (
+              discovered.packages
+              ++ discovered.apps
+              ++ discovered.checks
+              ++ discovered.shells
+              ++ discovered.overlays
+              ++ lib.optionals (discovered.formatter != null) [ discovered.formatter ]
+              ++ lib.optionals (discovered.deploy != null) [ discovered.deploy ]
+            )
+            ++ lib.filter (system: system != null && builtins.hasAttr system flakeKnownSystemSet) (
+              map (package: package.explicitSystem) discovered.packages
+            )
+            ++ legacyDeclaredSystems
+          );
+          derivedSystems =
+            if derivedSystemsRaw == [ ] then
+              defaultSystems
+            else
+              lib.filter (system: builtins.elem system defaultSystems) derivedSystemsRaw
+              ++ lib.sort (a: b: a < b) (
+                lib.filter (system: !builtins.elem system defaultSystems) derivedSystemsRaw
+              );
+          systems = if explicitSystemsArg == null then derivedSystems else explicitSystemsArg;
 
           nixpkgsConfig =
             if builtins.hasAttr "config" nixpkgs then nixpkgs.config else flatOr "nixpkgsConfig" { };

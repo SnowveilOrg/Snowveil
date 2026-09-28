@@ -12,9 +12,8 @@
 inputs.snowveil.lib.mkFlake {
   inherit inputs;
 
-  # 可选；通常自动推导
-  root = ./.;
-  systems = [ "x86_64-linux" "aarch64-linux" ];
+  root = ./.;                                    # 可选；默认自动推导
+  systems = [ "x86_64-linux" "aarch64-linux" ];  # 可选；省略时按发现结果推导
 
   nixpkgs = {
     config = { allowUnfree = true; };
@@ -62,7 +61,7 @@ inputs.snowveil.lib.mkFlake {
 | ---- | ---- | ------ | ---- |
 | `inputs` | attrset | 必填 | 当前用户 flake 的全部 inputs |
 | `root` | path | 自动推导 | 配置仓库根目录 |
-| `systems` | `[string]` | `["x86_64-linux","aarch64-linux"]` | per-system outputs 的目标架构 |
+| `systems` | `[string]` | 自动推导 | per-system outputs 的目标架构；省略时收集 hosts、packages、apps、checks、shells、overlays、formatter、deploy 声明的系统（`meta.systems`、`packages/<system>/`、legacy 后缀），无声明时回退 `["x86_64-linux","aarch64-linux"]` |
 | `nixpkgs.config` | attrset | `{}` | 统一 nixpkgs 配置，如 `allowUnfree` |
 | `nixpkgs.overlays` | `[overlay]` | `[]` | 在自动发现 overlays 之后追加 |
 | `nixos.modules` | `[module]` | `[]` | 仅追加到 NixOS |
