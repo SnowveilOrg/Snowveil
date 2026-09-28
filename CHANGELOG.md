@@ -68,6 +68,7 @@
 - `snowveil.patches.fromPR` 标记为已弃用，推荐使用 `snowveil.patches.fromCommit`（固定 commit hash，可复现）。
 - `mkFlake` 按 system 复用 package set，并缓存 discovery 索引、主机模块选择与依赖解析结果。
 - 文件树扁平化、模块分组、重复名称检测和依赖图排序改为索引或分组算法，减少属性集合并和重复线性扫描。
+- `source.clean` 默认排除新增 `node_modules`、`__pycache__`，并对 `node_modules` / `__pycache__` / `.direnv` 按任意层级目录名剪枝（此前仅前缀匹配）；项目源码清洗不再遍历文档站点的依赖目录。
 
 ### 弃用（仍兼容，至少保留一个 minor 版本）
 
