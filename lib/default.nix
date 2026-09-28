@@ -1055,9 +1055,10 @@ let
                       enabledUnion = lib.unique (
                         lib.concatMap (host: hostPlans.${host}.${side}.order) (builtins.attrNames discovered.hostsByName)
                       );
+                      enabledSet = lib.genAttrs enabledUnion (_: true);
                       allNames = builtins.attrNames discovered.moduleGraph.${side}.nodes;
                     in
-                    lib.filter (name: !builtins.elem name enabledUnion) allNames;
+                    lib.filter (name: !builtins.hasAttr name enabledSet) allNames;
                 in
                 {
                   nixos = sideReport "nixos";
@@ -1525,16 +1526,35 @@ let
                 let
                   allModules = builtins.attrNames discovered.moduleGraph.${side}.nodes;
                   total = builtins.length allModules;
-                  hosts = builtins.listToAttrs (
+                  coverageHostNames = map (hostRecord: hostRecord.name) coverageHosts;
+                  # 每个主机在本 side 的启用集合：O(1) 查找代替对 order 的线性 elem。
+                  hostEnabledSets = lib.genAttrs coverageHostNames (
+                    host: lib.genAttrs hostPlans.${host}.${side}.order (_: true)
+                  );
+                  # 反向索引：模块 → 启用它的主机名列表（按主机发现顺序）。
+                  # groupBy 一次线性扫描建立索引，替代原先 modules × hosts 的二次 elem 查找。
+                  enabledByIndex = lib.mapAttrs (_: entries: map (entry: entry.host) entries) (
+                    lib.groupBy (entry: entry.module) (
+                      lib.concatMap (
+                        host:
+                        map (name: {
+                          inherit host;
+                          module = name;
+                        }) (builtins.attrNames hostEnabledSets.${host})
+                      ) coverageHostNames
+                    )
+                  );
+                  hosts = lib.listToAttrs (
                     map (
                       hostRecord:
                       let
                         enabled = hostPlans.${hostRecord.name}.${side}.order;
                         enabledCount = builtins.length enabled;
+                        enabledSet = hostEnabledSets.${hostRecord.name};
                       in
                       lib.nameValuePair hostRecord.name {
                         inherit enabled total;
-                        disabled = lib.filter (name: !builtins.elem name enabled) allModules;
+                        disabled = lib.filter (name: !builtins.hasAttr name enabledSet) allModules;
                         percent = if total == 0 then 100 else builtins.div (enabledCount * 100) total;
                       }
                     ) coverageHosts
@@ -1545,9 +1565,7 @@ let
                   modules = lib.genAttrs allModules (
                     name:
                     let
-                      enabledBy = map (hostRecord: hostRecord.name) (
-                        lib.filter (hostRecord: builtins.elem name hostPlans.${hostRecord.name}.${side}.order) coverageHosts
-                      );
+                      enabledBy = enabledByIndex.${name} or [ ];
                     in
                     {
                       inherit enabledBy;
