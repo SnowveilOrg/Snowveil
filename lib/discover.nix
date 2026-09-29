@@ -40,6 +40,8 @@ let
   onlyDirs = es: lib.filter (e: e.type == "directory") es;
   onlyFiles = es: lib.filter (e: e.type == "regular") es;
   nixFiles = es: lib.filter (e: lib.hasSuffix ".nix" e.name) (onlyFiles es);
+  entryNames = es: lib.genAttrs (map (e: e.name) es) (_: true);
+  hasEntry = entries: name: builtins.hasAttr name (entryNames entries);
 
   readMetadata = fs.readMetadata;
 
@@ -52,9 +54,7 @@ let
         meta = readMetadata (projectRoot + "/${dir}/" + d.name + "/meta.nix");
       })
       (
-        lib.filter (d: builtins.pathExists (projectRoot + "/${dir}/" + d.name + "/default.nix")) (
-          onlyDirs (listDirAt dir)
-        )
+        lib.filter (d: hasEntry (listDirAt ("${dir}/" + d.name)) "default.nix") (onlyDirs (listDirAt dir))
       );
 
   hostFragmentFiles = [
@@ -68,6 +68,7 @@ let
     let
       rawName = e.name;
       relDir = "hosts/" + rawName;
+      entries = listDirAt relDir;
       metaPath = projectRoot + "/${relDir}/meta.nix";
       defPath = projectRoot + "/${relDir}/default.nix";
       knownFiles = lib.genAttrs (
@@ -78,7 +79,7 @@ let
         ++ hostFragmentFiles
       ) (_: true);
       strayFiles = map (f: f.name) (
-        lib.filter (f: !builtins.hasAttr f.name knownFiles) (nixFiles (listDirAt relDir))
+        lib.filter (f: !builtins.hasAttr f.name knownFiles) (nixFiles entries)
       );
       withStrayWarning =
         if strayFiles == [ ] then
@@ -86,15 +87,15 @@ let
         else
           builtins.trace "warning: files ${lib.concatStringsSep ", " strayFiles} under hosts/${rawName}/ are not host magic files and will not be auto-imported; import them explicitly from the host module if needed";
     in
-    if !builtins.pathExists metaPath then
+    if !hasEntry entries "meta.nix" then
       throw "hosts/${rawName}/meta.nix is required"
-    else if !builtins.pathExists defPath then
+    else if !hasEntry entries "default.nix" then
       throw "hosts/${rawName}/default.nix is required"
     else
       let
         meta = readMetadata metaPath;
-        fragmentPaths = lib.filter builtins.pathExists (
-          map (name: projectRoot + "/${relDir}/${name}") hostFragmentFiles
+        fragmentPaths = map (name: projectRoot + "/${relDir}/${name}") (
+          lib.filter (hasEntry entries) hostFragmentFiles
         );
       in
       withStrayWarning {
@@ -209,23 +210,16 @@ let
 
   rawPackageDirs = onlyDirs (listDirAt "packages");
 
-  directPackages =
-    map
-      (d: {
-        inherit (d) name;
-        path = projectRoot + "/packages/" + d.name + "/default.nix";
-        meta = readMetadata (projectRoot + "/packages/" + d.name + "/meta.nix");
-        explicitSystem = null;
-      })
-      (
-        lib.filter (
-          d: builtins.pathExists (projectRoot + "/packages/" + d.name + "/default.nix")
-        ) rawPackageDirs
-      );
+  directPackages = map (d: {
+    inherit (d) name;
+    path = projectRoot + "/packages/" + d.name + "/default.nix";
+    meta = readMetadata (projectRoot + "/packages/" + d.name + "/meta.nix");
+    explicitSystem = null;
+  }) (lib.filter (d: hasEntry (listDirAt ("packages/" + d.name)) "default.nix") rawPackageDirs);
 
   systemFirstPackages = lib.concatMap (
     systemDir:
-    if builtins.pathExists (projectRoot + "/packages/" + systemDir.name + "/default.nix") then
+    if hasEntry (listDirAt ("packages/" + systemDir.name)) "default.nix" then
       [ ]
     else
       map
@@ -236,9 +230,9 @@ let
           explicitSystem = systemDir.name;
         })
         (
-          lib.filter (
-            d: builtins.pathExists (projectRoot + "/packages/" + systemDir.name + "/" + d.name + "/default.nix")
-          ) (onlyDirs (listDirAt ("packages/" + systemDir.name)))
+          lib.filter (d: hasEntry (listDirAt ("packages/" + systemDir.name + "/" + d.name)) "default.nix") (
+            onlyDirs (listDirAt ("packages/" + systemDir.name))
+          )
         )
   ) rawPackageDirs;
 
@@ -253,7 +247,7 @@ let
         let
           path = projectRoot + "/homes/" + directory.name + "/default.nix";
         in
-        if builtins.pathExists path then path else null;
+        if hasEntry files "default.nix" then path else null;
       hostFiles = lib.filter (file: file.name != "default.nix") files;
       hostModules = builtins.listToAttrs (
         map (
@@ -290,10 +284,11 @@ let
     e:
     let
       rawName = e.name;
+      entries = listDirAt ("users/" + rawName);
       metaPath = projectRoot + "/users/" + rawName + "/meta.nix";
       defPath = projectRoot + "/users/" + rawName + "/default.nix";
     in
-    if !builtins.pathExists metaPath then
+    if !hasEntry entries "meta.nix" then
       null
     else
       let
@@ -302,7 +297,7 @@ let
       {
         name = rawName;
         inherit metaPath meta;
-        defaultPath = if builtins.pathExists defPath then defPath else null;
+        defaultPath = if hasEntry entries "default.nix" then defPath else null;
         hosts = normalizeHosts rawName (meta.hosts or null) (homesByUser.${rawName}.hosts or [ ]);
       };
 
@@ -378,7 +373,7 @@ in
         meta = readMetadata (projectRoot + "/overlays/" + d.name + "/meta.nix");
       })
       (
-        lib.filter (d: builtins.pathExists (projectRoot + "/overlays/" + d.name + "/default.nix")) (
+        lib.filter (d: hasEntry (listDirAt ("overlays/" + d.name)) "default.nix") (
           onlyDirs (listDirAt "overlays")
         )
       );
@@ -391,7 +386,7 @@ in
     let
       path = projectRoot + "/formatter/default.nix";
     in
-    if builtins.pathExists path then
+    if hasEntry (listDirAt "formatter") "default.nix" then
       {
         inherit path;
         meta = readMetadata (projectRoot + "/formatter/meta.nix");
@@ -403,7 +398,7 @@ in
     let
       path = projectRoot + "/deploy/default.nix";
     in
-    if builtins.pathExists path then
+    if hasEntry (listDirAt "deploy") "default.nix" then
       {
         inherit path;
         meta = readMetadata (projectRoot + "/deploy/meta.nix");
