@@ -139,11 +139,9 @@ let
       source,
       side,
       members,
-      knownNames,
+      knownNames ? [ ],
+      knownSet ? lib.genAttrs knownNames (_: true),
     }:
-    let
-      knownSet = lib.genAttrs knownNames (_: true);
-    in
     if lib.all (member: builtins.hasAttr member knownSet) members then
       members
     else

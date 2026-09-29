@@ -136,6 +136,10 @@ let
     };
   };
 
+  knownModuleSets = lib.mapAttrs (
+    _: graph: lib.genAttrs (builtins.attrNames graph.nodes) (_: true)
+  ) moduleGraph;
+
   localAutoModules = {
     nixos = lib.concatMap (name: localGroupedModules.nixos.${name}) moduleGraph.nixos.order;
     home = lib.concatMap (name: localGroupedModules.home.${name}) moduleGraph.home.order;
@@ -185,14 +189,14 @@ let
       inherit (profile) source;
       side = "nixos";
       members = profile.nixos;
-      knownNames = builtins.attrNames moduleGraph.nixos.nodes;
+      knownSet = knownModuleSets.nixos;
     };
     home = profileTools.checkMembers {
       profile = name;
       inherit (profile) source;
       side = "home";
       members = profile.home;
-      knownNames = builtins.attrNames moduleGraph.home.nodes;
+      knownSet = knownModuleSets.home;
     };
   }) resolvedProfiles;
 
