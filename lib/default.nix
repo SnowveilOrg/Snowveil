@@ -178,12 +178,37 @@ let
           ) overlayEntries
         );
 
+      # overlay 列表 → 稳定键（发现 overlay 的名称有序序列）。
+      # 元素一律来自 overlayEntries 的共享 loaded 实例（见上），因此“按名比较”
+      # 与“按闭包身份比较”等价：同一子集必然产生相同的 import nixpkgs 结果。
+      # 无法识别的 overlay（如用户传入的匿名 lambda）返回 null：调用方必须
+      # 放弃缓存、直接重新实例化，以保证绝不共享语义不同的包集。
+      overlayKeyFor =
+        list:
+        let
+          nameFor =
+            loaded:
+            lib.concatLists (
+              map (entry: lib.optionals (entry.loaded == loaded) [ entry.overlay.name ]) overlayEntries
+            );
+          keys = map nameFor list;
+        in
+        if builtins.all (key: key != [ ]) keys then lib.concatStringsSep "+" (map lib.head keys) else null;
+
+      pkgsMemoKeyFor =
+        system: overlays:
+        let
+          overlayKey = overlayKeyFor overlays;
+        in
+        if overlayKey == null then null else "${system}|${overlayKey}";
+
       pkgsFor =
         {
           system,
           nixpkgsConfig ? { },
           extraOverlays ? [ ],
           overlays ? overlayListForSystem system,
+          __memo ? null,
         }:
         # Check simple conditions first: list comparisons are cheaper than attrset equality
         if
@@ -194,11 +219,17 @@ let
         then
           nixpkgs.legacyPackages.${system}
         else
-          import nixpkgs {
-            inherit system;
-            config = nixpkgsConfig;
-            overlays = overlays ++ extraOverlays;
-          };
+          let
+            memoKey = if __memo == null then null else pkgsMemoKeyFor system overlays;
+          in
+          if memoKey != null && builtins.hasAttr memoKey __memo then
+            __memo.${memoKey}
+          else
+            import nixpkgs {
+              inherit system;
+              config = nixpkgsConfig;
+              overlays = overlays ++ extraOverlays;
+            };
 
       importFile =
         path:
@@ -377,6 +408,7 @@ let
           homeManagerUseGlobalPkgs ? true,
           hostPackages ? [ ],
           _pkgs ? null,
+          __memo ? null,
           _forTest ? false,
         }:
         let
@@ -391,6 +423,7 @@ let
                 inherit nixpkgsConfig;
                 inherit extraOverlays;
                 overlays = hostOverlays;
+                inherit __memo;
               }
             else
               _pkgs;
@@ -567,6 +600,7 @@ let
           extraOverlays ? [ ],
           hostPackages ? [ ],
           _pkgs ? null,
+          __memo ? null,
         }:
         let
           hmLib =
@@ -587,6 +621,7 @@ let
                 pkgsFor {
                   system = sys;
                   inherit nixpkgsConfig extraOverlays;
+                  inherit __memo;
                 }
               else
                 pkgsFor {
@@ -594,6 +629,7 @@ let
                   inherit nixpkgsConfig;
                   inherit extraOverlays;
                   overlays = overlayListForHost host sys;
+                  inherit __memo;
                 }
             else
               _pkgs;
@@ -726,10 +762,34 @@ let
           evalOutputs = outputs.eval or { };
           diagnosticsOutputs = outputs.diagnostics or { };
           packageSystems = lib.unique (systems ++ map (host: host.system) discovered.hosts);
+          flakePkgsMemo =
+            let
+              memoEntry =
+                system: overlays:
+                let
+                  key = pkgsMemoKeyFor system overlays;
+                in
+                if key == null then
+                  null
+                else
+                  lib.nameValuePair key (pkgsFor {
+                    inherit
+                      system
+                      nixpkgsConfig
+                      extraOverlays
+                      overlays
+                      ;
+                  });
+              entries =
+                map (system: memoEntry system (overlayListForSystem system)) packageSystems
+                ++ map (host: memoEntry host.system (overlayListForHost host.name host.system)) discovered.hosts;
+            in
+            lib.listToAttrs (lib.filter (entry: entry != null) entries);
           pkgsBySystem = lib.genAttrs packageSystems (
             system:
             pkgsFor {
               inherit system nixpkgsConfig extraOverlays;
+              __memo = flakePkgsMemo;
             }
           );
 
@@ -750,6 +810,7 @@ let
                   embedHomeManager
                   homeManagerUseGlobalPkgs
                   ;
+                __memo = flakePkgsMemo;
                 hostPackages = hostPackagesPlan.${h.name};
               })
             ) discovered.hosts
@@ -930,6 +991,7 @@ let
                       extraOverlays
                       ;
                     _pkgs = pkgsBySystem.${lib.head systems};
+                    __memo = flakePkgsMemo;
                   })
                 ) (lib.filter (homeRecord: homeRecord.defaultPath != null) discovered.homes)
               );
@@ -948,6 +1010,7 @@ let
                         nixpkgsConfig
                         extraOverlays
                         ;
+                      __memo = flakePkgsMemo;
                       hostPackages = hostPackagesPlan.${host};
                     })
                   ) (lib.filter (host: builtins.hasAttr host discovered.hostsByName) h.hosts)

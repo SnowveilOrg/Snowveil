@@ -58,8 +58,6 @@
     旧：hosts/nixos-desktop.x86_64-linux/meta.nix
     新：hosts/nixos-desktop/meta.nix { system = "x86_64-linux"; ... }
     ```
-
-
 ### 变更
 
 - `meta.nix` 与 `default.nix` 职责严格分离：`default.nix` 不再被 Snowveil 解析元数据，只交给 NixOS module system。
@@ -67,6 +65,7 @@
 - overlay 签名检测升级：通过 `functionArgs` 自动识别解构签名（`{ inputs, self, snowveil }: final: prev: ...`）；移除了位置参数扩展签名（`extras: final: prev: ...`）与对应的 `tryEval` 探测。
 - `snowveil.patches.fromPR` 标记为已弃用，推荐使用 `snowveil.patches.fromCommit`（固定 commit hash，可复现）。
 - `mkFlake` 按 system 复用 package set，并缓存 discovery 索引、主机模块选择与依赖解析结果。
+- 同一 `mkFlake` 调用内按 system 与已发现 overlay 子集复用 nixpkgs 实例，避免系统配置、独立 home 与 package outputs 重复求值相同包集。
 - 文件树扁平化、模块分组、重复名称检测和依赖图排序改为索引或分组算法，减少属性集合并和重复线性扫描。
 - `source.clean` 默认排除新增 `node_modules`、`__pycache__`，并对 `node_modules` / `__pycache__` / `.direnv` 按任意层级目录名剪枝（此前仅前缀匹配）；项目源码清洗不再遍历文档站点的依赖目录。
 
