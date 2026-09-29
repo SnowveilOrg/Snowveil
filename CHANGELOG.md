@@ -67,6 +67,7 @@
 - `mkFlake` 按 system 复用 package set，并缓存 discovery 索引、主机模块选择与依赖解析结果。
 - 同一 `mkFlake` 调用内按 system 与已发现 overlay 子集复用 nixpkgs 实例，避免系统配置、独立 home 与 package outputs 重复求值相同包集。
 - 含 capability 依赖的模块图排序仅重建已启用节点，避免为角色过滤后的无关节点重新计算拓扑顺序。
+- 跨 system 的 discovery 报告字段改为共享计算，避免重复序列化模块图、主机计划与静态发现元数据。
 - 文件树扁平化、模块分组、重复名称检测和依赖图排序改为索引或分组算法，减少属性集合并和重复线性扫描。
 - `source.clean` 默认排除新增 `node_modules`、`__pycache__`，并对 `node_modules` / `__pycache__` / `.direnv` 按任意层级目录名剪枝（此前仅前缀匹配）；项目源码清洗不再遍历文档站点的依赖目录。
 

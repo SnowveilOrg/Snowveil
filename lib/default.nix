@@ -1161,6 +1161,89 @@ let
                 warning = builtins.length (lib.filter (f: f.severity == "warning") sortedFindings);
               };
             };
+          graphReport = lib.mapAttrs (_: graph: {
+            inherit (graph)
+              order
+              edges
+              groups
+              capabilities
+              ;
+            nodes = builtins.attrNames graph.nodes;
+            details = lib.mapAttrs (_: node: {
+              inherit (node)
+                requires
+                requiresGroups
+                provides
+                requiresCapabilities
+                after
+                before
+                wants
+                conflicts
+                ;
+            }) graph.nodes;
+          }) discovered.moduleGraph;
+          perHostReport =
+            if diagnostics.perHostModuleGraph then
+              builtins.listToAttrs (
+                map (
+                  hostRecord:
+                  let
+                    plan = builtins.getAttr hostRecord.name hostPlans;
+                    reportSide =
+                      side:
+                      let
+                        selected = plan.${side};
+                      in
+                      {
+                        enabled = selected.order;
+                        inherit (selected)
+                          disabled
+                          disabledReasons
+                          capabilityEdges
+                          capabilityRequirements
+                          ;
+                      };
+                  in
+                  lib.nameValuePair hostRecord.name (lib.genAttrs [ "nixos" "home" ] reportSide)
+                ) discovered.hosts
+              )
+            else
+              { };
+          discoveryReportShared = {
+            schemaVersion = 1;
+            discoverySpecVersion = "1.5";
+            frameworkVersion = version.string;
+            hosts = map (host: host.name) discovered.hosts;
+            hostFiles = builtins.listToAttrs (
+              map (
+                hostRecord: lib.nameValuePair hostRecord.name (map baseNameOf hostRecord.modulePaths)
+              ) discovered.hosts
+            );
+            inherit (discovered) profiles;
+            hostProfiles = builtins.listToAttrs (
+              map (
+                hostRecord: lib.nameValuePair hostRecord.name hostPlans.${hostRecord.name}.profiles
+              ) discovered.hosts
+            );
+            users = map (u: u.name) discovered.users;
+            homes = builtins.attrNames homeConfigurations;
+            overlays = builtins.attrNames overlays;
+            overlayMetadata = builtins.listToAttrs (
+              map (overlay: lib.nameValuePair overlay.name overlay.meta) overlayDefinitions
+            );
+            nixosModules = builtins.attrNames discovered.localGroupedModules.nixos;
+            homeModules = builtins.attrNames discovered.localGroupedModules.home;
+            deploy =
+              lib.optional deployEnabled "present"
+              ++ lib.optionals (
+                deployEnabled && builtins.isAttrs deploy && builtins.isAttrs (deploy.nodes or null)
+              ) (map (name: "nodes.${name}") (builtins.attrNames deploy.nodes));
+            images = lib.concatMap (
+              hostRecord: map (format: "${hostRecord.name}.${format}") (hostRecord.meta.images.formats or [ ])
+            ) discovered.hosts;
+            moduleGraph = graphReport;
+            perHost = perHostReport;
+          };
           buildChecksForSystem =
             sys:
             let
@@ -1382,86 +1465,13 @@ let
                   );
                 };
 
-              graphReport = lib.mapAttrs (_: graph: {
-                inherit (graph)
-                  order
-                  edges
-                  groups
-                  capabilities
-                  ;
-                nodes = builtins.attrNames graph.nodes;
-                details = lib.mapAttrs (_: node: {
-                  inherit (node)
-                    requires
-                    requiresGroups
-                    provides
-                    requiresCapabilities
-                    after
-                    before
-                    wants
-                    conflicts
-                    ;
-                }) graph.nodes;
-              }) discovered.moduleGraph;
-              perHostReport =
-                if diagnostics.perHostModuleGraph then
-                  builtins.listToAttrs (
-                    map (
-                      hostRecord:
-                      let
-                        plan = builtins.getAttr hostRecord.name hostPlans;
-                        reportSide =
-                          side:
-                          let
-                            selected = plan.${side};
-                          in
-                          {
-                            enabled = selected.order;
-                            inherit (selected)
-                              disabled
-                              disabledReasons
-                              capabilityEdges
-                              capabilityRequirements
-                              ;
-                          };
-                      in
-                      lib.nameValuePair hostRecord.name (lib.genAttrs [ "nixos" "home" ] reportSide)
-                    ) discovered.hosts
-                  )
-                else
-                  { };
-              report = {
-                schemaVersion = 1;
-                discoverySpecVersion = "1.5";
-                frameworkVersion = version.string;
+              report = discoveryReportShared // {
                 system = sys;
-                hosts = discoveredHosts;
-                hostFiles = builtins.listToAttrs (
-                  map (
-                    hostRecord: lib.nameValuePair hostRecord.name (map baseNameOf hostRecord.modulePaths)
-                  ) discovered.hosts
-                );
-                inherit (discovered) profiles;
-                hostProfiles = builtins.listToAttrs (
-                  map (
-                    hostRecord: lib.nameValuePair hostRecord.name hostPlans.${hostRecord.name}.profiles
-                  ) discovered.hosts
-                );
-                users = map (u: u.name) discovered.users;
-                homes = discoveredHomes;
                 packages = discoveredPkgs;
                 apps = discoveredApps;
                 checks = discoveredUserChecks;
                 devShells = discoveredShells;
-                overlays = discoveredOverlays;
-                overlayMetadata = discoveredOverlayMetadata;
-                nixosModules = discoveredNixosModules;
-                homeModules = discoveredHomeModules;
                 formatter = discoveredFormatter;
-                deploy = discoveredDeploy;
-                images = discoveredImages;
-                moduleGraph = graphReport;
-                perHost = perHostReport;
               };
 
               dotEscape = value: builtins.replaceStrings [ "\\" "\"" ] [ "\\\\" "\\\"" ] value;
