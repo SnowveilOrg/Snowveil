@@ -407,10 +407,17 @@ let
         }) item.providers
       ) capabilityRequirements;
       capabilityEdgesBySource = lib.groupBy (edge: edge.from) capabilityEdges;
-      effectiveOrderAfterMap = lib.mapAttrs (
-        name: node:
-        lib.unique (node.orderAfter ++ map (edge: edge.to) (capabilityEdgesBySource.${name} or [ ]))
-      ) graph.nodes;
+      effectiveNodes = lib.genAttrs enabledNames (
+        name:
+        let
+          node = graph.nodes.${name};
+        in
+        {
+          orderAfter = lib.unique (
+            node.orderAfter ++ map (edge: edge.to) (capabilityEdgesBySource.${name} or [ ])
+          );
+        }
+      );
       conflicts = lib.unique (
         lib.concatMap (
           name:
@@ -429,16 +436,12 @@ let
           ) (lib.filter (conflict: builtins.hasAttr conflict enabledSet) graph.nodes.${name}.conflicts)
         ) enabledNames
       );
-      # When capability edges are present, we must re-run topological sort on the
-      # full graph with the new constraints. This is O(N log N) for the entire graph,
-      # not an incremental update. For large graphs with many capabilities, this can
-      # be a performance bottleneck.
       order =
         if capabilityEdges == [ ] then
           lib.filter (name: builtins.hasAttr name enabledSet) graph.order
         else
           topologicalOrder {
-            nodes = lib.mapAttrs (_: oa: { orderAfter = oa; }) effectiveOrderAfterMap;
+            nodes = effectiveNodes;
             enabled = enabledNames;
             inherit (graph) side;
           };

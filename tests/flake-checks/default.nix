@@ -382,6 +382,18 @@ let
           "xorg"
           "consumer"
         ];
+      capabilityFiltering =
+        (dependencyGraph.resolve {
+          graph = capabilityGraph;
+          enabled = [
+            "consumer"
+            "wayland"
+          ];
+          target = "test fixture";
+        }).order == [
+          "wayland"
+          "consumer"
+        ];
     };
   dependencyFailureChecks = {
     invalidModuleGroups = builtins.tryEval (
