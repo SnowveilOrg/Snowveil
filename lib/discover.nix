@@ -40,8 +40,9 @@ let
   onlyDirs = es: lib.filter (e: e.type == "directory") es;
   onlyFiles = es: lib.filter (e: e.type == "regular") es;
   nixFiles = es: lib.filter (e: lib.hasSuffix ".nix" e.name) (onlyFiles es);
-  entryNames = es: lib.genAttrs (map (e: e.name) es) (_: true);
-  hasEntry = entries: name: builtins.hasAttr name (entryNames entries);
+  # 约定目录只有少量条目，对已读取的条目列表做线性扫描，
+  # 避免每次存在性探测都重建一份条目名索引。
+  hasEntry = entries: name: lib.any (e: e.name == name) entries;
 
   readMetadata = fs.readMetadata;
 
