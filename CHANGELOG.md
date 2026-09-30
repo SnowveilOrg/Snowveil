@@ -36,7 +36,7 @@
 - Discovery 规范文档（`docs/reference/discovery.md`）。
 - `outputs.expected` 扩展到 checks、devShells、overlays、nixosModules、homeModules、formatter、deploy 与 images，并新增 `exact` 集合模式。
 - `outputs.eval.hosts` / `outputs.eval.homes`：可选的配置求值检查，支持 bool 或目标名称列表。每个目标生成独立的 `snowveil-eval-host-<name>` / `snowveil-eval-home-<name>` 检查（per-target JSON 含 drvPath 并移除字符串 context），另按 system 生成仅登记名称的聚合 JSON，避免检查间互相连累与 eval 期串行实例化全部配置。
-- `outputs.diagnostics`：可选择关闭 discovery JSON、全局 DOT 或 per-host 模块图。
+- `outputs.diagnostics`：可选择关闭 discovery JSON、全局 DOT、per-host 模块图、doctor、expected scaffold 与模块覆盖率；其中构建期需要 graphviz 且会强制全量配置求值的 `moduleGraph` 默认关闭。
 - `scripts/benchmark-eval.sh`：使用 `NIX_SHOW_STATS=1` 记录无 eval cache 的耗时、峰值内存与 evaluator 指标。
 - `snowveil.source.clean` / `snowveil.projectSource`：统一、可复现的项目源码过滤接口。
 - 模块依赖字段支持 `nixos` / `home` 分侧追加；新增 `moduleGroups`、`requiresGroups`、`provides` 与 `requiresCapabilities`。

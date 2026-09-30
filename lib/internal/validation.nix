@@ -176,7 +176,9 @@
       ) supportedDiagnosticKeys;
       diagnostics = {
         discovery = checkedDiagnosticsOutputs.discovery or true;
-        moduleGraph = checkedDiagnosticsOutputs.moduleGraph or true;
+        # 模块图 DOT/SVG 检查需要在构建期强制全部配置并调用 graphviz，开销最大，
+        # 默认关闭；doctor / discovery 等轻量报告仍默认开启。
+        moduleGraph = checkedDiagnosticsOutputs.moduleGraph or false;
         perHostModuleGraph = checkedDiagnosticsOutputs.perHostModuleGraph or false;
         doctor = checkedDiagnosticsOutputs.doctor or true;
         expectedScaffold = checkedDiagnosticsOutputs.expectedScaffold or true;

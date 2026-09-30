@@ -113,7 +113,7 @@ checks.<system>.snowveil-eval-home-<name>
 
 ## 诊断输出控制
 
-默认生成 discovery JSON、全局 DOT 和 doctor 健康检查，per-host DOT 默认关闭。只需要轻量 CI 时可关闭部分诊断：
+默认生成 discovery JSON 与 doctor 健康检查；模块图 DOT（含 SVG 渲染，构建期需要 graphviz）与 per-host DOT 默认关闭。只需要轻量 CI 时可调整诊断：
 
 ```nix
 outputs.diagnostics = {

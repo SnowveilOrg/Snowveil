@@ -77,7 +77,11 @@ let
   exampleFlake = snowveil.mkFlake {
     inputs = exampleInputs;
     root = exampleRoot;
-    outputs.diagnostics.perHostModuleGraph = true;
+    # moduleGraph 诊断默认已关闭，这里显式开启以覆盖 DOT/SVG 输出断言
+    outputs.diagnostics = {
+      moduleGraph = true;
+      perHostModuleGraph = true;
+    };
     nixos.specialArgs = {
       snowveilTestArg = "injected";
       snowveilNixosOnly = "nixos-only";

@@ -44,7 +44,7 @@ inputs.snowveil.lib.mkFlake {
     };
     diagnostics = {
       discovery = true;
-      moduleGraph = true;
+      moduleGraph = false;
       perHostModuleGraph = false;
       doctor = true;
       expectedScaffold = true;
@@ -74,7 +74,7 @@ inputs.snowveil.lib.mkFlake {
 | `outputs.disabled` | `[string]` | `[]` | 禁用自动发现的 output |
 | `outputs.expected` | attrset | `{}` | 校验框架发现或生成的 output 集合，支持 `subset` / `exact` |
 | `outputs.eval` | attrset | `{ hosts = false; homes = false; }` | 按 bool 或目标名称列表启用 NixOS / Home Manager 轻量求值检查 |
-| `outputs.diagnostics` | attrset | 除 `perHostModuleGraph` 外均为 `true` | 控制 discovery、模块图、doctor、expected scaffold 和模块覆盖率 |
+| `outputs.diagnostics` | attrset | 仅 `moduleGraph` 与 `perHostModuleGraph` 为 `false`，其余 `true` | 控制 discovery、模块图、doctor、expected scaffold 和模块覆盖率 |
 | `moduleRegistries` | `[registry]` | `[]` | 按需并入外部模块注册表 |
 | `moduleGroups` | attrset | `{}` | 注册供 `requiresGroups` 使用的显式 all-of 模块组 |
 
@@ -284,7 +284,7 @@ snowveil.projectSource
 
 `outputs.expected.mode` 支持 `subset`（默认）和 `exact`。支持 hosts、homes、packages、apps、checks、devShells、overlays、nixosModules、homeModules、formatter、deploy 和 images；完整 schema 见[自定义 Outputs](/advanced/custom-outputs)。
 
-`outputs.eval.hosts` / `outputs.eval.homes` 默认关闭。值为 `true` 时检查全部目标，值为字符串列表时只求值指定 host 或 home；框架按 system 生成聚合检查，并为每个目标生成独立的 `snowveil-eval-host-<name>` / `snowveil-eval-home-<name>` 检查，聚合 JSON 不内联 drvPath，实例化开销按目标分摊。`outputs.diagnostics` 默认全部开启，可关闭不需要的 discovery 或模块图，避免 CI 强制无关报告。
+`outputs.eval.hosts` / `outputs.eval.homes` 默认关闭。值为 `true` 时检查全部目标，值为字符串列表时只求值指定 host 或 home；框架按 system 生成聚合检查，并为每个目标生成独立的 `snowveil-eval-host-<name>` / `snowveil-eval-home-<name>` 检查，聚合 JSON 不内联 drvPath，实例化开销按目标分摊。`outputs.diagnostics` 默认除 `moduleGraph` 与 `perHostModuleGraph` 外全部开启（模块图 DOT/SVG 需要构建期 graphviz 与全量配置求值），可关闭不需要的 discovery 或模块图，避免 CI 强制无关报告。
 
 ## 模块组与能力
 
