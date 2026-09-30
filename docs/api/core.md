@@ -284,7 +284,7 @@ snowveil.projectSource
 
 `outputs.expected.mode` 支持 `subset`（默认）和 `exact`。支持 hosts、homes、packages、apps、checks、devShells、overlays、nixosModules、homeModules、formatter、deploy 和 images；完整 schema 见[自定义 Outputs](/advanced/custom-outputs)。
 
-`outputs.eval.hosts` / `outputs.eval.homes` 默认关闭。值为 `true` 时检查全部目标，值为字符串列表时只求值指定 host 或 home；框架按 system 生成聚合检查。`outputs.diagnostics` 默认全部开启，可关闭不需要的 discovery 或模块图，避免 CI 强制无关报告。
+`outputs.eval.hosts` / `outputs.eval.homes` 默认关闭。值为 `true` 时检查全部目标，值为字符串列表时只求值指定 host 或 home；框架按 system 生成聚合检查，并为每个目标生成独立的 `snowveil-eval-host-<name>` / `snowveil-eval-home-<name>` 检查，聚合 JSON 不内联 drvPath，实例化开销按目标分摊。`outputs.diagnostics` 默认全部开启，可关闭不需要的 discovery 或模块图，避免 CI 强制无关报告。
 
 ## 模块组与能力
 

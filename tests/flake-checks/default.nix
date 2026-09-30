@@ -730,6 +730,8 @@ let
       exampleExpectedScaffold = exampleFlake.checks.${sys}.snowveil-expected-scaffold;
       exampleModuleCoverage = exampleFlake.checks.${sys}.snowveil-module-coverage;
       validatedChecks = exampleFlakeValidated.checks.x86_64-linux;
+      validatedEvalHostCheck = validatedChecks."snowveil-eval-host-nixos-desktop";
+      validatedEvalHomeCheck = validatedChecks."snowveil-eval-home-rhencloud@nixos-desktop";
       selectiveChecks = exampleFlakeSelective.checks.x86_64-linux;
       noDiagnosticChecks = exampleFlakeNoDiagnostics.checks.x86_64-linux;
       cleanedSource = exampleBound.source.clean {
@@ -1116,6 +1118,8 @@ let
         test -e ${validatedChecks.snowveil-discovery-expected-deploy}
         test -e ${validatedChecks.snowveil-eval-hosts}
         test -e ${validatedChecks.snowveil-eval-homes}
+        test -e ${validatedEvalHostCheck}
+        test -e ${validatedEvalHomeCheck}
         test -e ${exampleDotGraph}/nixos.dot
         test -e ${exampleDotGraph}/nixos.svg
         test -e ${exampleDotGraph}/hosts/nixos-desktop/home.dot
@@ -1138,6 +1142,12 @@ let
       evalcontrols = pkgs.runCommand "snowveil-eval-controls" { nativeBuildInputs = [ pkgs.jq ]; } ''
         ${pkgs.jq}/bin/jq -e 'map(.name) == ["hm-standalone"]' ${selectiveChecks.snowveil-eval-hosts} >/dev/null
         ${pkgs.jq}/bin/jq -e 'map(.name) == ["rhencloud@hm-standalone"]' ${selectiveChecks.snowveil-eval-homes} >/dev/null
+        # 聚合 JSON 不再内联 drvPath，避免 flake check 串行实例化全部配置
+        ${pkgs.jq}/bin/jq -e 'all(has("drvPath") | not)' ${validatedChecks.snowveil-eval-hosts} >/dev/null
+        ${pkgs.jq}/bin/jq -e 'all(has("drvPath") | not)' ${validatedChecks.snowveil-eval-homes} >/dev/null
+        # 每个目标有独立 check，强制单个 check 只拉起对应配置
+        ${pkgs.jq}/bin/jq -e '.name == "nixos-desktop" and has("drvPath")' ${validatedEvalHostCheck} >/dev/null
+        ${pkgs.jq}/bin/jq -e '.name == "rhencloud@nixos-desktop" and has("drvPath")' ${validatedEvalHomeCheck} >/dev/null
         test -e ${selectiveChecks.snowveil-module-graph-dot}/nixos.dot
         test ! -e ${selectiveChecks.snowveil-module-graph-dot}/hosts
         test "${if builtins.hasAttr "snowveil-discovery" selectiveChecks then "yes" else "no"}" = "no"

@@ -105,9 +105,11 @@ outputs.eval = {
 ```text
 checks.<system>.snowveil-eval-hosts
 checks.<system>.snowveil-eval-homes
+checks.<system>.snowveil-eval-host-<name>
+checks.<system>.snowveil-eval-home-<name>
 ```
 
-两项默认关闭，也可设为 `true` 检查全部目标。列表中的名称必须已经被发现；未知名称或错误类型会在求值 checks 时直接报错。检查分别求值 NixOS `system.build.toplevel.drvPath` 和 Home Manager `activationPackage.drvPath`，并移除字符串 context，避免轻量检查持有目标 derivation 的 GC 引用。
+两项默认关闭，也可设为 `true` 检查全部目标。列表中的名称必须已经被发现；未知名称或错误类型会在求值 checks 时直接报错。除按 system 聚合的 JSON 列表外，每个目标还会生成独立的 `snowveil-eval-host-<name>` / `snowveil-eval-home-<name>` 检查，内容为该目标的 `{ name, drvPath }` JSON；聚合 JSON 只登记名称、不内联 drvPath。因此单独运行 `nix flake check .#<system>` 时，每个目标的 NixOS `system.build.toplevel.drvPath` / Home Manager `activationPackage.drvPath` 由各自的检查并行强制，互不连累；强制聚合 JSON 不会拉起任何配置的实例化。per-target 检查输出会移除字符串 context，避免轻量检查持有目标 derivation 的 GC 引用。
 
 ## 诊断输出控制
 

@@ -1429,6 +1429,8 @@ let
               };
               checkedEval = builtins.deepSeq selectedEvalHosts (builtins.deepSeq selectedEvalHomes true);
               selectedEvalHostSet = lib.genAttrs selectedEvalHosts (_: true);
+              # 每个目标单独一个 check：聚合 JSON 只登记名称，_drvPath 只在强制单个
+              # check 时惰性计算，避免 flake check 串行实例化全部配置。
               hostEvalRecords =
                 map
                   (hostRecord: {
@@ -1452,16 +1454,37 @@ let
                 inherit name;
                 drvPath = builtins.unsafeDiscardStringContext homeConfigurations.${name}.activationPackage.drvPath;
               }) (lib.filter (name: systemForHome name == sys) selectedEvalHomes);
+              # 为每个求值目标生成独立 check。writeText 的正文只在强制该 check 时
+              # 求值，因此单个 check 只拉起对应配置的实例化，互不连累；
+              # 聚合 JSON 仅登记名称，不在 eval 期强制任何 drvPath。
+              # attr 名保留目标原名字（含 @ 与点号），派生名做文件系统安全替换。
+              evalNameSlug = lib.replaceStrings [ "@" "/" "." ] [ "-" "-" "-" ];
+              listToNameChecks =
+                kind: records:
+                lib.listToAttrs (
+                  map (
+                    record:
+                    lib.nameValuePair "snowveil-eval-${kind}-${record.name}" (
+                      pkgs.writeText "snowveil-eval-${kind}-${evalNameSlug record.name}-${sys}.json" (
+                        builtins.toJSON record
+                      )
+                    )
+                  ) records
+                );
+              evalHostChecks = listToNameChecks "host" hostEvalRecords;
+              evalHomeChecks = listToNameChecks "home" homeEvalRecords;
               evalChecks =
                 assert checkedEval;
-                lib.optionalAttrs (evalHosts == true || hostEvalRecords != [ ]) {
+                evalHostChecks
+                // evalHomeChecks
+                // lib.optionalAttrs (evalHosts == true || hostEvalRecords != [ ]) {
                   snowveil-eval-hosts = pkgs.writeText "snowveil-eval-hosts-${sys}.json" (
-                    builtins.toJSON hostEvalRecords
+                    builtins.toJSON (map (record: { inherit (record) name; }) hostEvalRecords)
                   );
                 }
                 // lib.optionalAttrs (evalHomes == true || homeEvalRecords != [ ]) {
                   snowveil-eval-homes = pkgs.writeText "snowveil-eval-homes-${sys}.json" (
-                    builtins.toJSON homeEvalRecords
+                    builtins.toJSON (map (record: { inherit (record) name; }) homeEvalRecords)
                   );
                 };
 
