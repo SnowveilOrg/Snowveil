@@ -8,12 +8,28 @@
 
 ## 独立性是结果，不是目的
 
-框架自身零 `flake-utils` / `flake.parts` 运行时依赖。这个选择的动机是：
+框架自身**零 `flake-utils` / `flake.parts` 运行时依赖**，完全基于纯 `nixpkgs.lib` 实现。这个选择的动机是：
 
-- 降低用户理解框架的认知负担（无需学习 flake-parts 模块系统）
-- 保持发现逻辑的可预测性（文件系统 → outputs，中间无额外抽象层）
+- **降低认知负荷**：无需为了组织几台主机而学习复杂抽象的第三方 Flake 模块系统 DSL。
+- **保持发现确定性**：目录文件树直接一对一映射到输出 outputs，中间无隐式黑盒机制���
+- **避免依赖传染**：配置仓库引入 Snowveil 不会拉入冗长的 flake.lock 依赖链，保持 lock 文件的极致精简。
 
-但这不意味着"不用 flake-parts"是设计目标本身。框架提供的是一套**文件系统驱动的配置模型**，该模型恰好不需要 flake-parts。
+### 为什么不采用 Snowfall 或 Flake-parts？
+
+| 方案 | 优势 | 为什么 Snowveil 重新设计 |
+| ---- | ---- | ----------------------- |
+| **flake.parts** | 提供了通用的模块化 Flake 系统 | 它是 Flake 级别的通用模块系统，更适合编写复杂库或通用工具；但对于配置系统来说，仍需手写大量 glue 代码来映射主机与配置。 |
+| **snowfallorg/lib** | 同样基于目录约定生成 outputs | 依赖深度绑定的上游生态（如 flake-utils-plus），且模块分类与多目标分拣逻辑偏向特定 opinionated 结构；Snowveil 采用轻量单树扫描与原生 options/nixos/home 三 magic 分拣。 |
+
+如果你正从其他框架迁移，可参考对应的平滑迁移方案：
+- [从普通 Flake 迁移](/migration/from-plain-flake)
+- [从 Snowfall 迁移](/migration/from-snowfall)
+- [从 flake-parts 迁移](/migration/from-flake-parts)
+- [从 nixos-unified 迁移](/migration/from-nixos-unified)
+
+> 与实践指南的对应关系：
+> - 目录扫描对应 [Discovery 规范](/reference/discovery) 与 [项目结构](/guide/directory-structure)。
+> - 主机与配置装配对应 [Hosts 指南](/guide/hosts) 与 [Core API 参考](/reference/core)。
 
 ## 两类用户
 

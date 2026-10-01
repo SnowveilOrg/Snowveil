@@ -50,7 +50,7 @@ Snowveil 是一个基于 Nix Flakes 的配置框架，用「目录约定 + 自�
 
 ## 核心 API 契约
 
-框架对外暴露的命名空间为 `snowveil`，这是公共接口，**不允许破坏性变更**（改动需在 `docs/api/core.md` 同步）：
+框架对外暴露的命名空间为 `snowveil`，这是公共接口，**不允许破坏性变更**（改动需在 `docs/reference/core.md` 同步）：
 
 - `mkFlake { inherit inputs; ... }` → 顶层 outputs 构造器（支持嵌套与扁平配置）
 - `mkLib { inherit inputs; }` → 返回绑定当前 flake inputs 的 `snowveil` 命名空间
@@ -60,7 +60,7 @@ Snowveil 是一个基于 Nix Flakes 的配置框架，用「目录约定 + 自�
 - `snowveil.patches.local` / `snowveil.patches.fromCommit`（推荐）/ `snowveil.patches.fromPR`（已弃用） → patch helper
 - `snowveil.sops` / `snowveil.source` → 密钥与源码辅助工具
 
-新增公共函数时，须在 `lib/default.nix` 导出，并在 `docs/api/core.md` 补充说明。
+新增公共函数时，须在 `lib/default.nix` 导出，并在 `docs/reference/core.md` 补充说明。
 
 ## 目录自动发现规则
 

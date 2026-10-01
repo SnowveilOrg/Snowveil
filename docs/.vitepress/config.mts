@@ -5,7 +5,13 @@ export default defineConfig({
   title: 'Snowveil',
   description: '基于 Nix Flakes 的配置框架',
   cleanUrls: true,
-  lastUpdated: '最后更新于',
+  lastUpdated: {
+    text: '最后更新于',
+    formatOptions: {
+      dateStyle: 'short',
+      timeStyle: 'medium',
+    },
+  },
   themeConfig: {
     outline: { level: [2, 3], label: '本页目录' },
     nav: [
@@ -13,7 +19,7 @@ export default defineConfig({
       { text: '指南', link: '/guide/hosts' },
       { text: '概念', link: '/concepts/philosophy' },
       { text: '迁移', link: '/migration/from-plain-flake' },
-      { text: '参考', link: '/reference/meta' },
+      { text: '参考', link: '/reference/core' },
       { text: '进阶', link: '/advanced/debugging' },
     ],
     sidebar: {
@@ -22,8 +28,7 @@ export default defineConfig({
           text: '🚀 开始',
           items: [
             { text: '什么是 Snowveil', link: '/guide/introduction' },
-            { text: '为什么使用 Snowveil', link: '/concepts/philosophy' },
-            { text: '快速开始', link: '/guide/getting-started' },
+            { text: '快速开始（5 分钟）', link: '/guide/getting-started' },
             { text: '项目结构', link: '/guide/directory-structure' },
             { text: '示例项目', link: '/guide/example-repository' },
           ],
@@ -31,34 +36,35 @@ export default defineConfig({
         {
           text: '📖 指南',
           items: [
-            { text: 'Hosts', link: '/guide/hosts' },
-            { text: 'Users', link: '/guide/users' },
-            { text: 'Home Manager', link: '/guide/home-manager' },
-            { text: 'Modules', link: '/guide/modules' },
-            { text: 'Roles', link: '/guide/roles' },
-            { text: 'Profiles', link: '/guide/profiles' },,
-            { text: 'Packages', link: '/guide/packages' },
-            { text: 'Overlays', link: '/guide/overlays-patches' },
-            { text: 'Secrets', link: '/guide/sops' },
-            { text: '自定义 Outputs', link: '/guide/extensions' },
+            { text: 'Hosts（主机）', link: '/guide/hosts' },
+            { text: 'Users（用户）', link: '/guide/users' },
+            { text: 'Home Manager 整合', link: '/guide/home-manager' },
+            { text: 'Modules（模块）', link: '/guide/modules' },
+            { text: '模块依赖与排序', link: '/guide/module-dependencies' },
+            { text: 'Roles（角色）', link: '/guide/roles' },
+            { text: 'Profiles（配置集）', link: '/guide/profiles' },
+            { text: 'Packages（软件包）', link: '/guide/packages' },
+            { text: 'Overlays 与 Patches', link: '/guide/overlays-patches' },
+            { text: 'Secrets（密钥管理）', link: '/guide/sops' },
+            { text: '自定义 Outputs 扩展', link: '/guide/extensions' },
           ],
         },
       ],
       '/concepts/': [
         {
-          text: '🧠 概念',
+          text: '🧠 概念与原理',
           items: [
-            { text: '核心理念', link: '/concepts/philosophy' },
-            { text: 'Discovery', link: '/concepts/discovery' },
-            { text: 'Module Graph', link: '/guide/module-dependencies' },
-            { text: 'Metadata', link: '/concepts/metadata' },
-            { text: 'Evaluation Model', link: '/concepts/architecture' },
+            { text: '核心理念与对比', link: '/concepts/philosophy' },
+            { text: '目录自动发现机制', link: '/concepts/discovery' },
+            { text: '模块依赖系统设计', link: '/concepts/module-dependency-system' },
+            { text: '元数据设计 (meta.nix)', link: '/concepts/metadata' },
+            { text: '架构与求值模型', link: '/concepts/architecture' },
           ],
         },
       ],
       '/migration/': [
         {
-          text: '🔄 迁移',
+          text: '🔄 迁移指南',
           items: [
             { text: '普通 Flake → Snowveil', link: '/migration/from-plain-flake' },
             { text: 'snowfall → Snowveil', link: '/migration/from-snowfall' },
@@ -69,37 +75,25 @@ export default defineConfig({
       ],
       '/reference/': [
         {
-          text: '📚 Reference',
+          text: '📚 参考规范',
           items: [
-            { text: 'meta.nix', link: '/reference/meta' },
-            { text: 'Discovery Specification', link: '/reference/discovery' },
-            { text: 'Core API', link: '/api/core' },
-            { text: 'Outputs', link: '/reference/generated-outputs' },
+            { text: 'Core API', link: '/reference/core' },
+            { text: 'meta.nix 元数据规范', link: '/reference/meta' },
+            { text: 'Discovery 发现规范', link: '/reference/discovery' },
+            { text: 'Generated Outputs 映射', link: '/reference/generated-outputs' },
             { text: '版本策略', link: '/reference/versioning' },
-          ],
-        },
-      ],
-      '/api/': [
-        {
-          text: '📚 Reference',
-          items: [
-            { text: 'meta.nix', link: '/reference/meta' },
-            { text: 'Discovery Specification', link: '/reference/discovery' },
-            { text: 'Core API', link: '/api/core' },
-            { text: 'Outputs', link: '/reference/generated-outputs' },
           ],
         },
       ],
       '/advanced/': [
         {
-          text: '🛠 Advanced',
+          text: '🛠 进阶开发',
           items: [
-            { text: 'Debugging', link: '/advanced/debugging' },
-            { text: 'Performance', link: '/advanced/performance' },
-            { text: 'Extending Snowveil', link: '/advanced/custom-outputs' },
-            { text: 'Internals', link: '/concepts/architecture' },
+            { text: '调试与问题排查', link: '/advanced/debugging' },
+            { text: '性能调优', link: '/advanced/performance' },
+            { text: '自定义 Outputs 进阶', link: '/advanced/custom-outputs' },
             { text: '外部模块注册表', link: '/advanced/registries' },
-            { text: 'Patch helper', link: '/advanced/patches' },
+            { text: '补丁应用助手 (Patches)', link: '/advanced/patches' },
           ],
         },
       ],

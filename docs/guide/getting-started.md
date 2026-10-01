@@ -1,14 +1,50 @@
 # 快速开始
 
-Snowveil 用「约定代替样板」，让多主机、多用户的 NixOS + home-manager 配置仓库结构清晰、可复用。
+Snowveil 用「约定代替样板」，让多主机、多用户的 NixOS + home-manager 配置仓库结构清晰、可复用。只需 5 分钟即可建立一个完整的可运行仓库。
 
-## 初始化模板
+## 5 分钟上手
+
+### 1. 使用模板初始化
+
+在空目录中运行：
 
 ```bash
 nix flake init --template github:SnowveilOrg/Snowveil
 ```
 
-## flake.nix 最小示例
+### 2. 最小目录骨架
+
+一个最基础的 Snowveil 配置仅需包含一台主机与 `flake.nix`：
+
+```text
+.
+├── flake.nix
+└── hosts/
+    └── my-host/
+        ├── meta.nix        # 必须：声明 system 架构
+        └── default.nix     # 必须：主机核心配置
+```
+
+其中文件内容极简：
+
+::: code-group
+```nix [hosts/my-host/meta.nix]
+{
+  system = "x86_64-linux";
+}
+```
+
+```nix [hosts/my-host/default.nix]
+{ pkgs, ... }:
+{
+  boot.loader.systemd-boot.enable = true;
+  environment.systemPackages = [ pkgs.git pkgs.neovim ];
+  system.stateVersion = "24.11";
+}
+```
+:::
+
+### 3. flake.nix 入口
 
 ```nix
 {
@@ -31,9 +67,10 @@ nix flake init --template github:SnowveilOrg/Snowveil
 }
 ```
 
-入口位于框架 flake 的 `lib` output 下，因此应使用 `inputs.snowveil.lib.mkFlake`，而不是 `inputs.snowveil.mkFlake`。
+> **注意**：入口位于框架 flake 的 `lib` output 下，因此应使用 `inputs.snowveil.lib.mkFlake`。
+> 框架会自动扫描 `hosts/` 发现 `my-host`，并自动装配出 `nixosConfigurations.my-host`。
 
-仅凭这一段，`hosts/`、`homes/`、`modules/`、`packages/`、`overlays/`、`apps/`、`formatter/`、`deploy/`、`lib/`、`shells/`、`checks/` 下的内容就会被自动解析。
+---
 
 ## 查看 outputs
 
@@ -43,15 +80,11 @@ nix flake init --template github:SnowveilOrg/Snowveil
 nix flake show
 ```
 
-结果会包含：
+输出将自动包含发现的各配置与模块：
 
 ```text
 nixosConfigurations
-└── nixos-desktop
-
-homeConfigurations
-├── rhencloud
-└── rhencloud@nixos-desktop
+└── my-host
 
 nixosModules
 homeModules
@@ -61,7 +94,9 @@ devShells
 checks
 ```
 
-Snowveil 根据目录生成这些 outputs。模块的求值由 NixOS 和 Home Manager 完成。
+更详细的完整目录层级与规范，请参考[项目结构](/guide/directory-structure)。
+
+---
 
 ## 常用全局配置
 

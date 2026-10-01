@@ -4,17 +4,23 @@
 
 ## Role 与 Profile
 
-| | Role | Profile |
+在规划多主机系统时，Role 与 Profile 承担不同维度的职责：
+
+| 维度 | Role（角色） | Profile（配置集） |
 | --- | --- | --- |
-| 声明位置 | Host `meta.nix` | Host `meta.nix` |
-| 核心作用 | 过滤模块目录 | 启用指定模块集合 |
-| 控制范围 | `modules/<role>/` | Profile 中列出的模块 |
-| 是否自动启用模块 | 否 | 是 |
-| 典型用途 | `desktop`、`server` | `workstation`、`gaming` |
+| **心智模型** | **主机分类（环境归属）** | **功能打包（开箱即用套件）** |
+| **声明位置** | `hosts/<name>/meta.nix` 中的 `roles` | `hosts/<name>/meta.nix` 中的 `profiles` |
+| **定义位置** | 模块目录名（如 `modules/<role>/`） | `profiles/<name>.nix` 单独文件 |
+| **核心机制** | 决定哪些模块目录被 `import` 进主机 | 将一组模块的 enable 开关批量设为 true |
+| **控制粒度** | 粗粒度（目录级过滤） | 细粒度（具体模块列表） |
+| **是否自动启用模块** | 否（仅注入定义，仍由 option 决定） | 是（直接激活预设） |
+| **典型示例** | `desktop`、`server`、`laptop` | `workstation`、`gaming`、`minimal-server` |
 
-**Role 决定主机加载哪些目录；Profile 列出需要启用的模块。**
+> **一句话总结**：
+> - **Role 决定主机能用什么**：一台 `server` 主机甚至不需要编译和扫描桌面组件。
+> - **Profile 决定主机直接开启什么**：一台 `desktop` 可以直接套用 `gaming` 配置集开启 Steam 与驱动配置。
 
-Role 不用于声明模块依赖。模块依赖见[模块图](/guide/module-dependencies)，Profile 的写法见[Profiles](/guide/profiles)。
+Role 不用于声明模块依赖。模块依赖见[模块图与依赖系统](/guide/module-dependencies)，Profile 的具体写法见下一节 [Profiles](/guide/profiles)。
 
 ## 声明角色
 

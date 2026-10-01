@@ -7,10 +7,10 @@ hero:
   tagline: 按约定扫描 hosts/、homes/ 和 modules/，生成对应的 Flake outputs。
   actions:
     - theme: brand
-      text: 快速开始
+      text: 快速开始 (5分钟)
       link: /guide/getting-started
     - theme: alt
-      text: 从普通 flake 迁移
+      text: 迁移已有配置
       link: /migration/from-plain-flake
     - theme: alt
       text: 在 GitHub 查看

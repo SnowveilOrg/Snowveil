@@ -43,7 +43,7 @@ cd <your-config>
 - [多主机与 Home Manager](./docs/guide/multiple-hosts.md)
 - [模块、角色与元数据](./docs/guide/modules.md)
 - [Packages、overlays 与扩展 outputs](./docs/guide/packages.md)
-- [核心 API](./docs/api/core.md)
+- [核心 API](./docs/reference/core.md)
 - [迁移指南](./docs/migration/from-plain-flake.md)
 
 ## 开发
