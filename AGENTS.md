@@ -50,22 +50,24 @@ Snowveil 是一个基于 Nix Flakes 的配置框架，用「目录约定 + 自�
 
 ## 核心 API 契约
 
-框架对外暴露的命名空间为 `snowveil`，这是公共接口，**不允许破坏性变更**（改动需在 README「核心 API」章节同步）：
+框架对外暴露的命名空间为 `snowveil`，这是公共接口，**不允许破坏性变更**（改动需在 `docs/api/core.md` 同步）：
 
-- `mkFlake { inherit inputs; systems ? [ ... ]; extraOutputs ? { }; extraSpecialArgs ? { }; }` → 顶层 outputs 构造器
-- `mkSystem { host; system ? null; modules ? []; extraSpecialArgs ? {}; }` → `nixosConfigurations.<host>`
-- `mkHome { user; host ? null; system ? null; modules ? []; extraSpecialArgs ? {}; }` → `homeConfigurations.<user>` 或 `"<user>@<host>"`
-- `mkLib { inherit inputs; }` → 返回 `snowveil` 命名空间
+- `mkFlake { inherit inputs; ... }` → 顶层 outputs 构造器（支持嵌套与扁平配置）
+- `mkLib { inherit inputs; }` → 返回绑定当前 flake inputs 的 `snowveil` 命名空间
+- `mkSystem { host; system ? null; modules ? []; extraSpecialArgs ? {}; ... }` → 通过 `mkLib` 或绑定命名空间调用，构造 `nixosConfigurations.<host>`
+- `mkHome { user; host ? null; system ? null; modules ? []; extraSpecialArgs ? {}; ... }` → 通过 `mkLib` 或绑定命名空间调用，构造 `homeConfigurations.<user>` 或 `"<user>@<host>"`
 - `importModules` / `flattenTree` / `groupModules` → 目录自动发现工具函数
-- `snowveil.patches.local` / `snowveil.patches.fromPR` → patch helper
+- `snowveil.patches.local` / `snowveil.patches.fromCommit`（推荐）/ `snowveil.patches.fromPR`（已弃用） → patch helper
+- `snowveil.sops` / `snowveil.source` → 密钥与源码辅助工具
 
-新增公共函数时，须在 `lib/default.nix` 导出，并在 README「核心 API」章节补充说明。
+新增公共函数时，须在 `lib/default.nix` 导出，并在 `docs/api/core.md` 补充说明。
 
 ## 目录自动发现规则
 
 - `hosts/<name>/` 主机目录使用裸名称，必须在 `meta.nix` 中声明 `system`，不猜测默认架构；key 为完整目录名。
 - 主机目录内固定分拣 magic 文件：`default.nix`（必需，主机意图）与可选的 `hardware.nix` / `disk.nix` / `network.nix`，存在则按此顺序自动 import（允许缺失）；`meta.nix` 仅作为元数据。与模块树的 `options.nix` / `nixos.nix` / `home.nix` 是同一套思路，但框架不内置 disko / nixos-hardware。非 magic 的 `.nix` 文件不会自动导入，仅输出 trace 警告。
-- `homes/<user>/<host>.nix` 声明该 home 关联到某主机（自动推导 `nixosConfigurations.<host>` 的 `snowveil.users`，无需在 host 中手写）；`homes/<user>/default.nix` 为用户共享 home。
+- `users/<name>/` 声明系统用户一等实体，`users/<name>/meta.nix` 通过 `hosts` 列表声明关联的主机并自动生成 `users.users.<name>` / `users.groups.<name>`，可选的 `users/<name>/default.nix` 作为用户补充模块。
+- `homes/<user>/<host>.nix` 声明该 home 关联到某主机并生成 `homeConfigurations."<user>@<host>"`（需存在对应的 `users/<user>/meta.nix`）；`homes/<user>/default.nix` 为用户共享 home（生成 `homeConfigurations.<user>`）。
 - `modules/` 单树递归收集四个 magic 文件：`options.nix`（接口声明，始终注入）、`default.nix`（中性共享实现）、`nixos.nix`（NixOS 专属实现）、`home.nix`（home-manager 专属实现）。
   - NixOS side load order：`options.nix` → `default.nix` → `nixos.nix`
   - home-manager side load order：`options.nix` → `default.nix` → `home.nix`
