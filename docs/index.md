@@ -31,7 +31,10 @@ features:
 ## 手写装配与目录约定
 
 <table>
+<thead>
 <tr><th>手写配置</th><th>Snowveil 配置</th></tr>
+</thead>
+<tbody>
 <tr><td>
 
 ```nix
@@ -61,6 +64,7 @@ homes/
 ```
 
 </td></tr>
+</tbody>
 </table>
 
 Snowveil 扫描目录并组装模块；NixOS 和 Home Manager 继续处理模块求值。
